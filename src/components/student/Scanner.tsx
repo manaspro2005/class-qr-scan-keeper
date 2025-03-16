@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { QrScanner } from '@yudiel/react-qr-scanner';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { QRData, Student } from '@/types';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
@@ -166,7 +166,7 @@ const Scanner = () => {
               transition={{ duration: 0.3 }}
               className="overflow-hidden rounded-lg"
             >
-              <QrScanner
+              <Scanner
                 onDecode={handleScan}
                 onError={handleError}
                 containerStyle={{ borderRadius: '0.5rem', overflow: 'hidden' }}

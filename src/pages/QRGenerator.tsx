@@ -5,7 +5,7 @@ import QRCodeDisplay from "@/components/ui/qr-code";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth, useProtectedRoute } from "@/lib/auth";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { ArrowLeft, Copy, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { QRData } from "@/types";

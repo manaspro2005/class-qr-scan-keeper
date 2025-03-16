@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { AttendanceFormData } from "@/types";
 import { Clock, Calendar } from "lucide-react";
