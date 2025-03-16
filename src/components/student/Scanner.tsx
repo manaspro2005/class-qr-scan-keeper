@@ -167,7 +167,7 @@ const Scanner = () => {
               className="overflow-hidden rounded-lg"
             >
               <QRCodeScanner
-                onResult={(result) => handleScan(result.getText())}
+                onScan={handleScan}
                 onError={handleError}
                 containerStyle={{ borderRadius: '0.5rem', overflow: 'hidden' }}
               />
