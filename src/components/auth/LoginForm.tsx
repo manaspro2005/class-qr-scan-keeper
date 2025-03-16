@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Loader2, Info } from "lucide-react";
-import { ALLOWED_TEACHERS } from "@/lib/auth";
 
 const LoginForm = () => {
   const { login, loading } = useAuth();
@@ -72,6 +71,15 @@ const LoginForm = () => {
               <Info className="h-5 w-5 mt-0.5 text-blue-500 flex-shrink-0" />
               <div className="text-sm text-muted-foreground">
                 Teachers: Enter your name and the provided password to login. Only authorized faculty members can log in.
+              </div>
+            </div>
+          )}
+
+          {role === "student" && (
+            <div className="p-3 bg-secondary/30 rounded-md flex items-start gap-2">
+              <Info className="h-5 w-5 mt-0.5 text-blue-500 flex-shrink-0" />
+              <div className="text-sm text-muted-foreground">
+                Students: You must sign up before logging in. Your attendance will be filtered based on your department and year.
               </div>
             </div>
           )}

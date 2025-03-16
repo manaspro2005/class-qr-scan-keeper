@@ -55,6 +55,11 @@ export function useQRScanner() {
         throw new Error('Student data not found');
       }
       
+      // Check if student is eligible for this attendance (matching department and year)
+      if (student.department !== qrData.department || student.year !== qrData.year) {
+        throw new Error(`This attendance is for ${qrData.department} Year ${qrData.year} students only`);
+      }
+      
       // Mark attendance
       const attendance = {
         studentId: student.id,
