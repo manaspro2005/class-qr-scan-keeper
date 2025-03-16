@@ -1,6 +1,5 @@
-
 import { MongoClient, ServerApiVersion } from 'mongodb';
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 const uri = "mongodb+srv://codedingwithmanas:bl2WGqX6ld1gyOPr@cluster0.q7ynb.mongodb.net/?retryWrites=true&w=majority";
 

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,7 +17,7 @@ import { useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
 
 // QR Scanner library (lazy loaded to reduce initial bundle size)
-const QrScanner = lazy(() => import("@yudiel/react-qr-scanner"));
+const QrScanner = lazy(() => import("@/components/student/Scanner"));
 
 const queryClient = new QueryClient();
 

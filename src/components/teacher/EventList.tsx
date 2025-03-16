@@ -22,7 +22,7 @@ import { AttendanceEvent, Attendee } from '@/types';
 import { Eye, Calendar, Clock, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { toast } from '@/components/ui/sonner';
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const EventList = () => {
