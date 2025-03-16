@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { Scanner as QRCodeScanner } from '@yudiel/react-qr-scanner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -166,8 +166,8 @@ const Scanner = () => {
               transition={{ duration: 0.3 }}
               className="overflow-hidden rounded-lg"
             >
-              <Scanner
-                onDecode={handleScan}
+              <QRCodeScanner
+                onResult={(result) => handleScan(result.getText())}
                 onError={handleError}
                 containerStyle={{ borderRadius: '0.5rem', overflow: 'hidden' }}
               />
