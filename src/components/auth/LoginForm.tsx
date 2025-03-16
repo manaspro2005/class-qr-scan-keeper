@@ -8,7 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info } from "lucide-react";
+import { ALLOWED_TEACHERS } from "@/lib/auth";
 
 const LoginForm = () => {
   const { login, loading } = useAuth();
@@ -19,9 +20,18 @@ const LoginForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error("Please fill in all fields");
-      return;
+    if (role === "teacher") {
+      // For teachers, we only need name (not email) and password
+      if (!email || !password) {
+        toast.error("Please provide your name and password");
+        return;
+      }
+    } else {
+      // For students, we need email and password
+      if (!email || !password) {
+        toast.error("Please fill in all fields");
+        return;
+      }
     }
 
     try {
@@ -57,12 +67,23 @@ const LoginForm = () => {
             </div>
           </RadioGroup>
 
+          {role === "teacher" && (
+            <div className="p-3 bg-secondary/30 rounded-md flex items-start gap-2">
+              <Info className="h-5 w-5 mt-0.5 text-blue-500 flex-shrink-0" />
+              <div className="text-sm text-muted-foreground">
+                Teachers: Enter your name and the provided password to login. Only authorized faculty members can log in.
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">
+              {role === "teacher" ? "Teacher Name" : "Email"}
+            </Label>
             <Input
               id="email"
-              placeholder="name@example.com"
-              type="email"
+              placeholder={role === "teacher" ? "e.g. Dr. Nilesh Salunke" : "name@example.com"}
+              type={role === "teacher" ? "text" : "email"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -94,12 +115,22 @@ const LoginForm = () => {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex justify-center">
+      <CardFooter className="flex flex-col items-center gap-2">
         <p className="text-sm text-muted-foreground">
-          Don't have an account?{" "}
-          <Link to="/register" className="text-primary hover:underline">
-            Sign Up
-          </Link>
+          {role === "student" ? (
+            <>
+              Don't have an account?{" "}
+              <Link to="/register" className="text-primary hover:underline">
+                Sign Up
+              </Link>
+            </>
+          ) : (
+            <>
+              Only authorized faculty members can login.
+              <br/>
+              Contact the administrator if you need access.
+            </>
+          )}
         </p>
       </CardFooter>
     </Card>

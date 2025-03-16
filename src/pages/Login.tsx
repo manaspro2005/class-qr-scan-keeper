@@ -44,7 +44,15 @@ const Login = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
+          className="space-y-4"
         >
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold">Welcome Back</h1>
+            <p className="text-muted-foreground mt-2">
+              Sign in to access the attendance system
+            </p>
+          </div>
+          
           <LoginForm />
         </motion.div>
       </div>

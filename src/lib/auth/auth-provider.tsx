@@ -26,38 +26,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Mock login function - in a real app, this would call your API
-  const login = async (email: string, password: string, role: 'teacher' | 'student') => {
+  const login = async (emailOrName: string, password: string, role: 'teacher' | 'student') => {
     try {
       setLoading(true);
       
       // For teacher login, validate against allowed teachers
       if (role === 'teacher') {
-        // Extract name from email (assuming email format is name@domain.com)
-        const emailName = email.split('@')[0];
-        const nameMatch = ALLOWED_TEACHERS.find(name => 
-          name.toLowerCase().includes(emailName.toLowerCase()));
+        // For teachers, we're searching by name (not email)
+        const nameInput = emailOrName.trim();
         
-        if (!nameMatch || password !== TEACHER_PASSWORD) {
-          throw new Error("Invalid teacher credentials");
+        // Find exact match or partial match with teacher name
+        const teacherMatch = ALLOWED_TEACHERS.find(teacherName => 
+          teacherName.toLowerCase() === nameInput.toLowerCase() || 
+          teacherName.toLowerCase().includes(nameInput.toLowerCase()));
+        
+        if (!teacherMatch) {
+          throw new Error("Teacher not found in authorized list");
+        }
+        
+        if (password !== TEACHER_PASSWORD) {
+          throw new Error("Invalid teacher password");
         }
         
         const teacher: Teacher = {
           id: `teacher-${Date.now()}`,
-          email,
-          name: nameMatch,
+          email: `${teacherMatch.toLowerCase().replace(/\s+/g, '.')}@example.com`, // Generate email from name
+          name: teacherMatch,
           role: 'teacher',
           verified: true
         };
         
         setUser(teacher);
         localStorage.setItem("user", JSON.stringify(teacher));
-        toast.success("Teacher login successful");
+        toast.success(`Welcome, ${teacherMatch}`);
         navigate("/teacher-dashboard");
       } else {
         // Student login is simpler for now
         // This would validate against your database in a real app
+        const email = emailOrName;
         
         // For demo purposes, mock a successful student login
+        // In a real app, you would check if the student exists in the database
         const student: Student = {
           id: `student-${Date.now()}`,
           email,
