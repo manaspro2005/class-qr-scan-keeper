@@ -29,11 +29,12 @@ const ScannerActive: React.FC<ScannerActiveProps> = ({ onScan, onError, onCancel
         transition={{ duration: 0.3 }}
         className="overflow-hidden rounded-lg"
       >
-        <QRCodeScanner
-          onScan={handleScan}
-          onError={onError}
-          className="rounded-lg overflow-hidden"
-        />
+        <div className="rounded-lg overflow-hidden">
+          <QRCodeScanner
+            onScan={handleScan}
+            onError={onError}
+          />
+        </div>
       </motion.div>
       
       <Button 
