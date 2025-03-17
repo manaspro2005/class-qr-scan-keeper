@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth, useProtectedRoute } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EventList } from "@/components/teacher/EventList";
+import { EventList } from "@/components/teacher/attendance/EventList";
 import { motion } from "framer-motion";
 import { LogOut, QrCode, Plus } from "lucide-react";
 

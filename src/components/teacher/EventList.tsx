@@ -1,3 +1,3 @@
 
-// Direct export of the actual EventList component rather than importing and re-exporting
+// This file should just export the component from the attendance directory
 export { EventList } from './attendance/EventList';
