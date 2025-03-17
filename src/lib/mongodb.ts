@@ -1,6 +1,7 @@
 
 import { MongoClient, ServerApiVersion } from 'mongodb';
 import { toast } from "sonner";
+import { AttendanceEvent, Student } from '@/types';
 
 const uri = "mongodb+srv://codedingwithmanas:bl2WGqX6ld1gyOPr@cluster0.q7ynb.mongodb.net/?retryWrites=true&w=majority";
 
@@ -34,7 +35,7 @@ export async function getCollection<T>(collectionName: string) {
 // Function to save student data from Clerk
 export async function saveStudentData(studentData: any) {
   try {
-    const studentsCollection = await getCollection('students');
+    const studentsCollection = await getCollection<Student>('students');
     
     // Check if student already exists with this email
     const existingStudent = await studentsCollection.findOne({ email: studentData.email });
@@ -61,7 +62,7 @@ export async function saveStudentData(studentData: any) {
 // Function to mark students as absent after time expires
 export async function markAbsentStudents(eventId: string) {
   try {
-    const eventsCollection = await getCollection('attendanceEvents');
+    const eventsCollection = await getCollection<AttendanceEvent>('attendanceEvents');
     const event = await eventsCollection.findOne({ id: eventId });
     
     if (!event) {
@@ -69,14 +70,14 @@ export async function markAbsentStudents(eventId: string) {
     }
     
     // Get all students for this department and year
-    const studentsCollection = await getCollection('students');
+    const studentsCollection = await getCollection<Student>('students');
     const eligibleStudents = await studentsCollection.find({
       department: event.department,
       year: event.year
     }).toArray();
     
     // Get IDs of students who already marked attendance
-    const presentStudentIds = new Set(event.attendees.map((a: any) => a.studentId));
+    const presentStudentIds = new Set(event.attendees.map((a) => a.studentId));
     
     // Find students who didn't mark attendance
     const absentStudents = eligibleStudents.filter(student => !presentStudentIds.has(student.id));

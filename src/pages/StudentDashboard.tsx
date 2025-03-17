@@ -9,6 +9,14 @@ import { AttendanceEvent } from "@/types";
 import { useUser, useAuth, SignOutButton } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 
+// Define a type for student metadata
+interface StudentMetadata {
+  department?: string;
+  year?: string;
+  rollNo?: string;
+  sapId?: string;
+}
+
 const StudentDashboard = () => {
   const { user } = useUser();
   const { isSignedIn } = useAuth();
@@ -29,9 +37,9 @@ const StudentDashboard = () => {
       
       try {
         // Get student data from clerk metadata
-        const studentMeta = user.publicMetadata;
-        const department = studentMeta.department as string;
-        const year = studentMeta.year as string;
+        const studentMeta = user.publicMetadata as StudentMetadata;
+        const department = studentMeta.department;
+        const year = studentMeta.year;
         
         if (!department || !year) {
           console.warn("Student metadata incomplete:", studentMeta);
@@ -76,7 +84,7 @@ const StudentDashboard = () => {
     );
   }
 
-  const studentMeta = user.publicMetadata;
+  const studentMeta = user.publicMetadata as StudentMetadata;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">

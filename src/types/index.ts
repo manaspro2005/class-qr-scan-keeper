@@ -37,6 +37,7 @@ export interface AttendanceEvent {
   qrExpiry: Date;
   createdAt: Date;
   attendees: Attendee[];
+  absentProcessed?: boolean; // Added this property
 }
 
 export interface Attendee {
