@@ -392,7 +392,7 @@ const EventList = () => {
                           <TableCell>{attendee.sapId}</TableCell>
                           <TableCell>
                             {attendee.present ? (
-                              <Badge variant="success" className="bg-green-500">
+                              <Badge variant="default" className="bg-green-500">
                                 <Check className="mr-1 h-3 w-3" />
                                 Present
                               </Badge>
