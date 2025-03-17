@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,8 +9,6 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
-import StudentLogin from "./pages/StudentLogin";
-import StudentRegister from "./pages/StudentRegister";
 import CreateSession from "./pages/CreateSession";
 import QRGenerator from "./pages/QRGenerator";
 import NotFound from "./pages/NotFound";
@@ -45,8 +42,6 @@ const AppRoutes = () => {
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/student-login" element={<StudentLogin />} />
-          <Route path="/student-register" element={<StudentRegister />} />
           <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           <Route path="/create-session" element={<CreateSession />} />
