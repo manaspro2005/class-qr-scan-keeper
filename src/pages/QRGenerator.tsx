@@ -8,8 +8,7 @@ import { useAuth, useProtectedRoute } from "@/lib/auth";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Download } from "lucide-react";
 import { motion } from "framer-motion";
-import { QRData, AttendanceEvent } from "@/types";
-import { storeAttendanceEvent } from "@/lib/mongodb";
+import { QRData } from "@/types";
 
 const QRGenerator = () => {
   const navigate = useNavigate();
@@ -19,7 +18,6 @@ const QRGenerator = () => {
   const [eventData, setEventData] = useState<any>(null);
   const [qrData, setQrData] = useState<string>("");
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
-  const [savingEvent, setSavingEvent] = useState(false);
   
   useEffect(() => {
     // Get event data from session storage
@@ -53,20 +51,8 @@ const QRGenerator = () => {
       setQrData(JSON.stringify(qrDataObj));
       setExpiryDate(expiry);
       
-      // Create complete attendance event object
-      const attendanceEvent: AttendanceEvent = {
-        ...parsedEventData,
-        qrCode: JSON.stringify(qrDataObj),
-        qrExpiry: expiry,
-        createdAt: new Date(),
-        attendees: [],
-        absentProcessed: false
-      };
-      
-      // Store in database
-      storeEventData(attendanceEvent);
-      
-      // For demo: Store attendance event in localStorage as fallback
+      // Store attendance event in localStorage for demo purposes
+      // In a real app, this would be stored in your database
       const storedEvents = localStorage.getItem("attendanceEvents") || "[]";
       const events = JSON.parse(storedEvents);
       
@@ -74,7 +60,14 @@ const QRGenerator = () => {
       const eventExists = events.some((e: any) => e.id === parsedEventData.id);
       
       if (!eventExists) {
-        events.push(attendanceEvent);
+        events.push({
+          ...parsedEventData,
+          qrCode: JSON.stringify(qrDataObj),
+          qrExpiry: expiry,
+          createdAt: new Date(),
+          attendees: []
+        });
+        
         localStorage.setItem("attendanceEvents", JSON.stringify(events));
       }
       
@@ -84,21 +77,6 @@ const QRGenerator = () => {
       navigate("/create-session");
     }
   }, [navigate, user]);
-
-  const storeEventData = async (event: AttendanceEvent) => {
-    try {
-      setSavingEvent(true);
-      const result = await storeAttendanceEvent(event);
-      if (result.success) {
-        console.log("Event stored in database");
-      }
-    } catch (error) {
-      console.error("Failed to store event in database:", error);
-      // Continue with localStorage fallback
-    } finally {
-      setSavingEvent(false);
-    }
-  };
 
   const downloadQRCode = () => {
     const canvas = document.querySelector("canvas");

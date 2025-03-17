@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { QRData, Student } from '@/types';
-import { useAuth } from '@/lib/auth';
-import { markAttendance } from '@/lib/mongodb';
+import { useAuth } from '@clerk/clerk-react';
+import { useUser } from '@clerk/clerk-react';
 
 export function useQRScanner() {
-  const { user } = useAuth();
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const [scanning, setScanning] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function useQRScanner() {
   }, []);
 
   const handleScan = async (data: string) => {
-    if (!data || processing) return;
+    if (!data || processing || !isSignedIn || !user) return;
     
     try {
       setProcessing(true);
@@ -50,61 +51,48 @@ export function useQRScanner() {
         throw new Error('Oops! You got fooled. This is a fake QR code.');
       }
       
-      // Get student data
-      const student = user as Student;
-      if (!student) {
-        throw new Error('Student data not found');
+      // Get student data from Clerk user metadata
+      const studentMeta = user.publicMetadata;
+      if (!studentMeta || !studentMeta.department || !studentMeta.year) {
+        throw new Error('Student profile data incomplete. Please update your profile.');
       }
       
       // Check if student is eligible for this attendance (matching department and year)
-      if (student.department !== qrData.department || student.year !== qrData.year) {
+      if (studentMeta.department !== qrData.department || studentMeta.year !== qrData.year) {
         throw new Error(`This attendance is for ${qrData.department} Year ${qrData.year} students only`);
       }
       
       // Mark attendance
       const attendance = {
-        studentId: student.id,
-        name: student.name,
-        rollNo: student.rollNo,
-        sapId: student.sapId,
+        studentId: user.id,
+        name: user.fullName || user.username || 'Unknown',
+        rollNo: studentMeta.rollNo || 'N/A',
+        sapId: studentMeta.sapId || 'N/A',
         scanTime: new Date(),
         present: true
       };
       
-      // Save attendance to MongoDB
-      const result = await markAttendance(qrData.eventId, attendance);
+      // Save attendance to event in localStorage
+      const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
+      const events = JSON.parse(storedEvents);
       
-      if (!result.success) {
-        if (result.message === "Already marked attendance") {
-          throw new Error('You have already marked your attendance for this session');
-        }
-        throw new Error('Failed to mark attendance');
+      // Find the event
+      const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
+      
+      if (eventIndex === -1) {
+        throw new Error('Event not found');
       }
       
-      // Also update localStorage for demo/fallback
-      try {
-        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-        const events = JSON.parse(storedEvents);
-        
-        // Find the event
-        const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
-        
-        if (eventIndex !== -1) {
-          // Check if student already marked attendance
-          if (events[eventIndex].attendees.some((a: any) => a.studentId === student.id)) {
-            // Already marked, but continue because MongoDB operation was successful
-          } else {
-            // Add attendance to event
-            events[eventIndex].attendees.push(attendance);
-            
-            // Save updated events
-            localStorage.setItem('attendanceEvents', JSON.stringify(events));
-          }
-        }
-      } catch (e) {
-        console.error("LocalStorage update failed:", e);
-        // Continue since the MongoDB operation was successful
+      // Check if student already marked attendance
+      if (events[eventIndex].attendees.some((a: any) => a.studentId === user.id)) {
+        throw new Error('You have already marked your attendance for this session');
       }
+      
+      // Add attendance to event
+      events[eventIndex].attendees.push(attendance);
+      
+      // Save updated events
+      localStorage.setItem('attendanceEvents', JSON.stringify(events));
       
       // Show success
       setSuccess(true);

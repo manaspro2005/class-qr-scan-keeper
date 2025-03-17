@@ -1,7 +1,7 @@
 
-import { MongoClient, ServerApiVersion, ObjectId, WithId } from 'mongodb';
+import { MongoClient, ServerApiVersion } from 'mongodb';
 import { toast } from "sonner";
-import { AttendanceEvent, Student, Attendee, StudentData } from '@/types';
+import { AttendanceEvent, Student } from '@/types';
 
 const uri = "mongodb+srv://codedingwithmanas:bl2WGqX6ld1gyOPr@cluster0.q7ynb.mongodb.net/?retryWrites=true&w=majority";
 
@@ -14,19 +14,11 @@ const client = new MongoClient(uri, {
   }
 });
 
-// Database and collection names
-const DB_NAME = "attendance-system";
-const COLLECTIONS = {
-  EVENTS: "attendance-events",
-  STUDENTS: "students",
-  TEACHERS: "teachers"
-};
-
 // Export a function to get the database instance
 export async function getDatabase() {
   try {
     await client.connect();
-    return client.db(DB_NAME);
+    return client.db("attendance-system");
   } catch (error) {
     console.error("Failed to connect to MongoDB:", error);
     toast.error("Failed to connect to database");
@@ -40,150 +32,78 @@ export async function getCollection<T>(collectionName: string) {
   return db.collection<T>(collectionName);
 }
 
-// Store attendance event
-export async function storeAttendanceEvent(event: AttendanceEvent) {
+// Function to save student data from Clerk
+export async function saveStudentData(studentData: any) {
   try {
-    const collection = await getCollection<AttendanceEvent>(COLLECTIONS.EVENTS);
-    const result = await collection.insertOne(event);
-    console.log(`Attendance event saved with ID: ${result.insertedId}`);
-    return { success: true, id: result.insertedId };
-  } catch (error) {
-    console.error("Failed to store attendance event:", error);
-    toast.error("Failed to save attendance event");
-    return { success: false, error };
-  }
-}
-
-// Get attendance events for a teacher
-export async function getTeacherEvents(teacherId: string) {
-  try {
-    const collection = await getCollection<AttendanceEvent>(COLLECTIONS.EVENTS);
-    const events = await collection.find({ teacherId }).sort({ createdAt: -1 }).toArray();
-    return events;
-  } catch (error) {
-    console.error("Failed to get teacher events:", error);
-    toast.error("Failed to load attendance events");
-    return [];
-  }
-}
-
-// Mark student attendance
-export async function markAttendance(eventId: string, student: Attendee) {
-  try {
-    const collection = await getCollection<AttendanceEvent>(COLLECTIONS.EVENTS);
+    const studentsCollection = await getCollection<Student>('students');
     
-    // Check if student already marked attendance
-    const event = await collection.findOne({ id: eventId });
-    if (!event) {
-      throw new Error("Event not found");
+    // Check if student already exists with this email
+    const existingStudent = await studentsCollection.findOne({ email: studentData.email });
+    
+    if (existingStudent) {
+      // Update existing student data
+      await studentsCollection.updateOne(
+        { email: studentData.email },
+        { $set: studentData }
+      );
+      return existingStudent._id;
+    } else {
+      // Insert new student
+      const result = await studentsCollection.insertOne(studentData);
+      return result.insertedId;
     }
-
-    // Check if student already in attendees list
-    if (event.attendees.some(a => a.studentId === student.studentId)) {
-      return { success: false, message: "Already marked attendance" };
-    }
-
-    // Add student to attendees
-    await collection.updateOne(
-      { id: eventId },
-      { $push: { attendees: student } }
-    );
-
-    return { success: true };
   } catch (error) {
-    console.error("Failed to mark attendance:", error);
-    toast.error("Failed to mark attendance");
-    return { success: false, error };
+    console.error("Failed to save student data:", error);
+    toast.error("Failed to save student data to database");
+    throw error;
   }
 }
 
-// Mark absent students after QR expiry
-export async function processAbsentStudents(eventId: string, departmentStudents: StudentData[]) {
+// Function to mark students as absent after time expires
+export async function markAbsentStudents(eventId: string) {
   try {
-    const collection = await getCollection<AttendanceEvent>(COLLECTIONS.EVENTS);
+    const eventsCollection = await getCollection<AttendanceEvent>('attendanceEvents');
+    const event = await eventsCollection.findOne({ id: eventId });
     
-    // Get the event
-    const event = await collection.findOne({ id: eventId });
     if (!event) {
       throw new Error("Event not found");
     }
     
-    // If already processed, skip
-    if (event.absentProcessed) {
-      return { success: true, message: "Already processed" };
-    }
+    // Get all students for this department and year
+    const studentsCollection = await getCollection<Student>('students');
+    const eligibleStudents = await studentsCollection.find({
+      department: event.department,
+      year: event.year
+    }).toArray();
     
-    // Get all present student IDs
-    const presentStudentIds = event.attendees.map(a => a.studentId);
+    // Get IDs of students who already marked attendance
+    const presentStudentIds = new Set(event.attendees.map((a) => a.studentId));
     
-    // Find absent students
-    const absentStudents = departmentStudents
-      .filter(student => !presentStudentIds.includes(student.id))
-      .map(student => ({
+    // Find students who didn't mark attendance
+    const absentStudents = eligibleStudents.filter(student => !presentStudentIds.has(student.id));
+    
+    // Add absent students to event attendees
+    for (const student of absentStudents) {
+      event.attendees.push({
         studentId: student.id,
         name: student.name,
-        rollNo: student.rollNo,
-        sapId: student.sapId,
+        rollNo: student.rollNo || "N/A",
+        sapId: student.sapId || "N/A",
         scanTime: new Date(),
         present: false
-      }));
-    
-    // Add absent students to attendees
-    await collection.updateOne(
-      { id: eventId },
-      { 
-        $push: { attendees: { $each: absentStudents } },
-        $set: { absentProcessed: true }
-      }
-    );
-    
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to process absent students:", error);
-    toast.error("Failed to mark absent students");
-    return { success: false, error };
-  }
-}
-
-// Store student data on registration
-export async function storeStudent(student: Student) {
-  try {
-    const collection = await getCollection<Student>(COLLECTIONS.STUDENTS);
-    
-    // Check if student already exists with the same email
-    const existingStudent = await collection.findOne({ email: student.email });
-    if (existingStudent) {
-      return { success: false, message: "Student with this email already exists" };
+      });
     }
     
-    const result = await collection.insertOne(student);
-    console.log(`Student saved with ID: ${result.insertedId}`);
-    return { success: true, id: result.insertedId };
-  } catch (error) {
-    console.error("Failed to store student:", error);
-    toast.error("Failed to save student data");
-    return { success: false, error };
-  }
-}
-
-// Get students by department and year
-export async function getStudentsByDepartmentAndYear(department: string, year: string) {
-  try {
-    const collection = await getCollection<Student>(COLLECTIONS.STUDENTS);
-    const students = await collection.find({ department, year }).toArray();
+    // Update event in database
+    await eventsCollection.updateOne(
+      { id: eventId },
+      { $set: { attendees: event.attendees } }
+    );
     
-    // Map to StudentData format
-    return students.map(student => ({
-      id: student.id,
-      name: student.name,
-      rollNo: student.rollNo,
-      sapId: student.sapId,
-      present: false
-    }));
+    return event.attendees;
   } catch (error) {
-    console.error("Failed to get students:", error);
-    toast.error("Failed to load students");
-    return [];
+    console.error("Failed to mark absent students:", error);
+    throw error;
   }
 }
 
