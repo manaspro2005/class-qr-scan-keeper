@@ -1,28 +1,55 @@
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AttendanceEvent } from "@/types";
-import { CalendarDays, Clock, Eye, Download, UserPlus, Users } from "lucide-react";
-import AttendanceDetails from "./AttendanceDetails";
+import { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
+import { AttendanceEvent, Attendee } from '@/types';
+import { Eye, Calendar, Clock, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { toast } from "sonner";
-import * as XLSX from 'xlsx';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const EventList = () => {
+  const { user } = useAuth();
   const [events, setEvents] = useState<AttendanceEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<AttendanceEvent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState<AttendanceEvent | null>(null);
 
   useEffect(() => {
     const loadEvents = () => {
       try {
-        // Load events from localStorage
-        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-        let parsedEvents = JSON.parse(storedEvents);
+        // In a real app, this would fetch from your API
+        // For demo, we'll load from local storage
+        const storedEvents = localStorage.getItem('attendanceEvents');
+        let parsedEvents: AttendanceEvent[] = [];
+        
+        if (storedEvents) {
+          parsedEvents = JSON.parse(storedEvents);
+        }
+        
+        // Filter events for current teacher
+        if (user?.id) {
+          parsedEvents = parsedEvents.filter(event => event.teacherId === user.id);
+        }
         
         // Sort by date (newest first)
-        parsedEvents.sort((a: AttendanceEvent, b: AttendanceEvent) => 
+        parsedEvents.sort((a, b) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         
@@ -34,314 +61,176 @@ const EventList = () => {
         setLoading(false);
       }
     };
-    
+
     loadEvents();
-    
-    // Refresh events every 30 seconds to catch new attendance
-    const intervalId = setInterval(loadEvents, 30000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Function to mark absent students after 5 minutes
-  useEffect(() => {
-    const markAbsentStudents = async () => {
-      if (!events.length) return;
-      
-      // Current time
-      const now = new Date();
-      
-      // Check each event
-      const updatedEvents = events.map(event => {
-        // Skip events that don't have QR expiry or events already processed
-        if (!event.qrExpiry || event.absentProcessed) return event;
-        
-        // QR expiry time + 5 minutes
-        const qrExpiry = new Date(event.qrExpiry);
-        const cutoffTime = new Date(qrExpiry.getTime() + 5 * 60 * 1000);
-        
-        // If 5 minutes after QR expiry has passed, mark remaining students as absent
-        if (now > cutoffTime && !event.absentProcessed) {
-          // We would implement a function to get all students for this department/year
-          // and mark those not in attendees as absent
-          const updatedEvent = { ...event, absentProcessed: true };
-          
-          // For now, let's assume we have a mock list of all students in this department/year
-          // In a real implementation, we would fetch this from the database
-          const mockStudentList = [
-            { id: "mock-1", name: "John Doe", rollNo: "CS001", sapId: "SAP001" },
-            { id: "mock-2", name: "Jane Smith", rollNo: "CS002", sapId: "SAP002" },
-            { id: "mock-3", name: "Bob Johnson", rollNo: "CS003", sapId: "SAP003" }
-          ];
-          
-          // Get IDs of students who already marked attendance
-          const presentStudentIds = new Set(updatedEvent.attendees.map(a => a.studentId));
-          
-          // Find students who didn't mark attendance
-          const absentStudents = mockStudentList.filter(student => !presentStudentIds.has(student.id));
-          
-          // Add absent students to event attendees
-          absentStudents.forEach(student => {
-            updatedEvent.attendees.push({
-              studentId: student.id,
-              name: student.name,
-              rollNo: student.rollNo,
-              sapId: student.sapId,
-              scanTime: new Date(),
-              present: false
-            });
-          });
-          
-          return updatedEvent;
-        }
-        
-        return event;
-      });
-      
-      // Update state and localStorage
-      if (JSON.stringify(updatedEvents) !== JSON.stringify(events)) {
-        setEvents(updatedEvents);
-        localStorage.setItem('attendanceEvents', JSON.stringify(updatedEvents));
-      }
-    };
-    
-    // Check for absent students every minute
-    const intervalId = setInterval(markAbsentStudents, 60000);
-    
-    // Run once immediately
-    markAbsentStudents();
+    // Also set up a refresh interval (e.g., every minute)
+    const intervalId = setInterval(loadEvents, 60000);
     
     return () => clearInterval(intervalId);
-  }, [events]);
+  }, [user]);
 
-  const formatDate = (dateString: string) => {
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  const handleViewAttendance = (event: AttendanceEvent) => {
+  const viewAttendees = (event: AttendanceEvent) => {
     setSelectedEvent(event);
   };
 
-  const handleCloseDetails = () => {
+  const closeDialog = () => {
     setSelectedEvent(null);
-  };
-
-  const exportToExcel = (event: AttendanceEvent) => {
-    try {
-      // Sort attendees by roll number for easier reading
-      const sortedAttendees = [...event.attendees].sort((a, b) => 
-        a.rollNo.localeCompare(b.rollNo)
-      );
-      
-      // Prepare data for export
-      const exportData = sortedAttendees.map(student => ({
-        'Roll No': student.rollNo,
-        'SAP ID': student.sapId,
-        'Name': student.name,
-        'Status': student.present ? 'Present' : 'Absent',
-        'Time': student.present ? new Date(student.scanTime).toLocaleTimeString() : '-'
-      }));
-      
-      // Create worksheet
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      
-      // Create column widths
-      const colWidths = [
-        { wch: 10 }, // Roll No
-        { wch: 10 }, // SAP ID
-        { wch: 25 }, // Name
-        { wch: 10 }, // Status
-        { wch: 10 }  // Time
-      ];
-      worksheet['!cols'] = colWidths;
-      
-      // Create workbook
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
-      
-      // Generate file name
-      const fileName = `Attendance_${event.subject}_${event.date}_${event.department}_Year${event.year}.xlsx`;
-      
-      // Export file
-      XLSX.writeFile(workbook, fileName);
-      
-      toast.success('Attendance data exported successfully');
-    } catch (error) {
-      console.error('Failed to export data:', error);
-      toast.error('Failed to export attendance data');
-    }
   };
 
   if (loading) {
     return (
-      <Card className="glass-card">
+      <Card className="w-full glass-card animate-pulse-soft">
         <CardHeader>
-          <CardTitle>Attendance Records</CardTitle>
-          <CardDescription>Loading attendance records...</CardDescription>
+          <CardTitle>Loading Events...</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-12 bg-secondary/50 rounded"></div>
-            <div className="h-12 bg-secondary/50 rounded"></div>
-            <div className="h-12 bg-secondary/50 rounded"></div>
-          </div>
-        </CardContent>
       </Card>
     );
   }
 
-  if (selectedEvent) {
+  if (events.length === 0) {
     return (
-      <AttendanceDetails 
-        event={selectedEvent} 
-        onClose={handleCloseDetails} 
-        onExport={() => exportToExcel(selectedEvent)}
-      />
+      <Card className="w-full glass-card animate-fade-in">
+        <CardHeader>
+          <CardTitle>No Events Found</CardTitle>
+          <CardDescription>
+            You haven't created any attendance events yet. Generate a QR code to start tracking attendance.
+          </CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
   return (
-    <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Attendance Records
-        </CardTitle>
-        <CardDescription>
-          {events.length === 0 
-            ? "No attendance sessions recorded yet" 
-            : `${events.length} attendance session${events.length === 1 ? '' : 's'} recorded`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="recent">
-          <TabsList className="mb-4">
-            <TabsTrigger value="recent">Recent Sessions</TabsTrigger>
-            <TabsTrigger value="all">All Sessions</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="recent">
-            <div className="space-y-4">
-              {events.slice(0, 5).map((event) => (
-                <Card key={event.id} className="overflow-hidden">
-                  <div className="p-4 flex flex-col sm:flex-row justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold">{event.subject}</h3>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          <span>{formatDate(event.date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>{event.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <UserPlus className="h-3.5 w-3.5" />
-                          <span>{event.attendees.length} student{event.attendees.length === 1 ? '' : 's'}</span>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm">
-                        <span className="font-medium">Department:</span> {event.department}, Year {event.year}
-                      </div>
-                    </div>
-                    
-                    <div className="flex sm:flex-col gap-2 sm:justify-center">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex gap-1.5"
-                        onClick={() => handleViewAttendance(event)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>View</span>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex gap-1.5"
-                        onClick={() => exportToExcel(event)}
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>Export</span>
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-              
-              {events.length === 0 && (
-                <div className="text-center py-6 text-muted-foreground">
-                  No attendance sessions recorded yet
-                </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="all">
-            <div className="space-y-4">
+    <>
+      <Card className="w-full glass-card animate-fade-in">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Attendance Events
+          </CardTitle>
+          <CardDescription>
+            View and manage your attendance records
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableCaption>A list of your recent attendance events.</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead className="hidden md:table-cell">Subject</TableHead>
+                <TableHead className="hidden md:table-cell">Room</TableHead>
+                <TableHead>Attendees</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {events.map((event) => (
-                <Card key={event.id} className="overflow-hidden">
-                  <div className="p-4 flex flex-col sm:flex-row justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold">{event.subject}</h3>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          <span>{formatDate(event.date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>{event.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <UserPlus className="h-3.5 w-3.5" />
-                          <span>{event.attendees.length} student{event.attendees.length === 1 ? '' : 's'}</span>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm">
-                        <span className="font-medium">Department:</span> {event.department}, Year {event.year}
-                      </div>
-                    </div>
-                    
-                    <div className="flex sm:flex-col gap-2 sm:justify-center">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex gap-1.5"
-                        onClick={() => handleViewAttendance(event)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>View</span>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex gap-1.5"
-                        onClick={() => exportToExcel(event)}
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>Export</span>
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
+                <TableRow key={event.id} className="hover-scale">
+                  <TableCell>{event.date}</TableCell>
+                  <TableCell>{event.time}</TableCell>
+                  <TableCell className="hidden md:table-cell">{event.subject}</TableCell>
+                  <TableCell className="hidden md:table-cell">{event.room}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="font-normal">
+                      <Users className="mr-1 h-3 w-3" />
+                      {event.attendees.length}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => viewAttendees(event)}
+                    >
+                      <Eye className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-              
-              {events.length === 0 && (
-                <div className="text-center py-6 text-muted-foreground">
-                  No attendance sessions recorded yet
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Attendees Dialog */}
+      <Dialog open={!!selectedEvent} onOpenChange={closeDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="space-y-1">
+              <div className="flex justify-between items-center">
+                <span>Attendance Record</span>
+                <Badge variant="outline" className="ml-2">
+                  {selectedEvent?.department} - Year {selectedEvent?.year}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-4 text-sm font-normal text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  {selectedEvent?.date}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {selectedEvent?.time}
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">
+                {selectedEvent?.subject}
+              </h3>
+              <Badge>Room {selectedEvent?.room}</Badge>
+            </div>
+
+            <Separator />
+
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Students Present ({selectedEvent?.attendees.length || 0})
+              </h4>
+
+              {selectedEvent?.attendees.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No students marked present yet.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Roll No</TableHead>
+                        <TableHead>SAP ID</TableHead>
+                        <TableHead>Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedEvent?.attendees.map((attendee: Attendee) => (
+                        <TableRow key={attendee.studentId}>
+                          <TableCell>{attendee.name}</TableCell>
+                          <TableCell>{attendee.rollNo}</TableCell>
+                          <TableCell>{attendee.sapId}</TableCell>
+                          <TableCell>
+                            {new Date(attendee.scanTime).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

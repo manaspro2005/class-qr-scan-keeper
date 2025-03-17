@@ -1,50 +1,26 @@
 
+import { useAuth, useProtectedRoute } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Scanner from "@/components/student/Scanner";
 import { LogOut, QrCode, Scan, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { AttendanceEvent } from "@/types";
-import { useUser, useAuth, SignOutButton } from "@clerk/clerk-react";
-import { useNavigate } from "react-router-dom";
-
-// Define a type for student metadata
-interface StudentMetadata {
-  department?: string;
-  year?: string;
-  rollNo?: string;
-  sapId?: string;
-}
+import { Student, AttendanceEvent } from "@/types";
 
 const StudentDashboard = () => {
-  const { user } = useUser();
-  const { isSignedIn } = useAuth();
-  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { loading } = useProtectedRoute("student");
   const [availableEvents, setAvailableEvents] = useState<AttendanceEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  
-  // Redirect to login if not signed in
-  useEffect(() => {
-    if (!isSignedIn) {
-      navigate("/student-login");
-    }
-  }, [isSignedIn, navigate]);
   
   useEffect(() => {
     const loadEvents = () => {
       if (!user) return;
       
       try {
-        // Get student data from clerk metadata
-        const studentMeta = user.publicMetadata as StudentMetadata;
-        const department = studentMeta.department;
-        const year = studentMeta.year;
-        
-        if (!department || !year) {
-          console.warn("Student metadata incomplete:", studentMeta);
-          return;
-        }
+        // Get student data
+        const student = user as Student;
         
         // Load events from localStorage
         const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
@@ -52,8 +28,8 @@ const StudentDashboard = () => {
         
         // Filter events for this student's department and year
         events = events.filter((event: AttendanceEvent) => 
-          event.department === department && 
-          event.year === year
+          event.department === student.department && 
+          event.year === student.year
         );
         
         // Sort by date (newest first)
@@ -76,15 +52,15 @@ const StudentDashboard = () => {
     return () => clearInterval(intervalId);
   }, [user]);
   
-  if (!isSignedIn || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Redirecting to login...</div>
+        <div className="animate-pulse text-xl">Loading...</div>
       </div>
     );
   }
 
-  const studentMeta = user.publicMetadata as StudentMetadata;
+  const student = user as Student;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -97,14 +73,12 @@ const StudentDashboard = () => {
           
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline-block">
-              {user.fullName || user.username}
+              {user?.name}
             </span>
-            <SignOutButton>
-              <Button variant="outline" size="sm">
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </SignOutButton>
+            <Button variant="outline" size="sm" onClick={logout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
@@ -126,27 +100,27 @@ const StudentDashboard = () => {
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">Name</dt>
-                  <dd>{user.fullName || user.username}</dd>
+                  <dd>{student?.name}</dd>
                 </div>
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">Roll Number</dt>
-                  <dd>{studentMeta.rollNo || "Not set"}</dd>
+                  <dd>{student?.rollNo}</dd>
                 </div>
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">SAP ID</dt>
-                  <dd>{studentMeta.sapId || "Not set"}</dd>
+                  <dd>{student?.sapId}</dd>
                 </div>
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">Department</dt>
-                  <dd>{studentMeta.department || "Not set"}</dd>
+                  <dd>{student?.department}</dd>
                 </div>
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">Year</dt>
-                  <dd>{studentMeta.year || "Not set"}</dd>
+                  <dd>{student?.year}</dd>
                 </div>
                 <div className="space-y-1">
                   <dt className="text-sm text-muted-foreground">Email</dt>
-                  <dd>{user.primaryEmailAddress?.emailAddress || "Not set"}</dd>
+                  <dd>{student?.email}</dd>
                 </div>
               </dl>
             </CardContent>
@@ -166,7 +140,7 @@ const StudentDashboard = () => {
                   Available Attendance Sessions
                 </CardTitle>
                 <CardDescription>
-                  You have {availableEvents.length} active sessions for {studentMeta.department} Year {studentMeta.year}
+                  You have {availableEvents.length} active sessions for {student.department} Year {student.year}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -178,7 +152,7 @@ const StudentDashboard = () => {
                           <h3 className="font-medium">{event.subject}</h3>
                           <p className="text-sm text-muted-foreground">Room {event.room} • {event.date} at {event.time}</p>
                         </div>
-                        {event.attendees.some(a => a.studentId === user.id) ? (
+                        {event.attendees.some(a => a.studentId === student.id) ? (
                           <div className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
                             Marked
                           </div>
@@ -210,7 +184,7 @@ const StudentDashboard = () => {
                   Attendance QR Scanner
                 </CardTitle>
                 <CardDescription>
-                  Scan the QR code displayed by your teacher to mark your attendance for {studentMeta.department} Year {studentMeta.year}
+                  Scan the QR code displayed by your teacher to mark your attendance for {student.department} Year {student.year}
                 </CardDescription>
               </CardHeader>
             </Card>
