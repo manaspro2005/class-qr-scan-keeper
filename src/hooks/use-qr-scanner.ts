@@ -66,7 +66,7 @@ export function useQRScanner() {
         name: student.name,
         rollNo: student.rollNo,
         sapId: student.sapId,
-        scanTime: new Date().toISOString(), 
+        scanTime: new Date(),
         present: true
       };
       
@@ -78,8 +78,6 @@ export function useQRScanner() {
       const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
       
       if (eventIndex === -1) {
-        console.error("Event not found with ID:", qrData.eventId);
-        console.log("Available events:", events.map((e: any) => e.id));
         throw new Error('Event not found');
       }
       
