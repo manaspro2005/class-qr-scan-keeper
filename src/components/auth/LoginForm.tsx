@@ -19,9 +19,18 @@ const LoginForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error("Please fill in all fields");
-      return;
+    if (role === "teacher") {
+      // For teachers, we only need name (not email) and password
+      if (!email || !password) {
+        toast.error("Please provide your name and password");
+        return;
+      }
+    } else {
+      // For students, we need email and password
+      if (!email || !password) {
+        toast.error("Please fill in all fields");
+        return;
+      }
     }
 
     try {
@@ -61,7 +70,7 @@ const LoginForm = () => {
             <div className="p-3 bg-secondary/30 rounded-md flex items-start gap-2">
               <Info className="h-5 w-5 mt-0.5 text-blue-500 flex-shrink-0" />
               <div className="text-sm text-muted-foreground">
-                Teachers: Enter your email address and password to login.
+                Teachers: Enter your name and the provided password to login. Only authorized faculty members can log in.
               </div>
             </div>
           )}
@@ -76,11 +85,13 @@ const LoginForm = () => {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">
+              {role === "teacher" ? "Teacher Name" : "Email"}
+            </Label>
             <Input
               id="email"
-              placeholder="name@example.com"
-              type="email"
+              placeholder={role === "teacher" ? "e.g. Dr. Nilesh Salunke" : "name@example.com"}
+              type={role === "teacher" ? "text" : "email"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

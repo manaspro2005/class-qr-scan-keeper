@@ -1,298 +1,165 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "./auth-context";
-import { supabase } from "@/integrations/supabase/client";
-import { User, RegisterFormData } from "@/types";
+import { User, Teacher, Student } from "@/types";
 import { toast } from "sonner";
+import { AuthContext } from "./auth-context";
+import { ALLOWED_TEACHERS, TEACHER_PASSWORD } from "./constants";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Load user from local storage on initial render
   useEffect(() => {
-    // Check for active session on mount
-    const checkSession = async () => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // Get additional user information from auth metadata
-          const { data: authUser } = await supabase.auth.getUser();
-          const userData = authUser?.user?.user_metadata;
-          
-          if (userData) {
-            const userRole = userData.user_type as 'student' | 'teacher';
-            
-            if (userRole === 'student') {
-              const { data: studentData } = await supabase
-                .from('students')
-                .select('*')
-                .eq('id', session.user.id)
-                .maybeSingle();
-                
-              if (studentData) {
-                setUser({
-                  id: session.user.id,
-                  email: userData.email || authUser.user.email || '',
-                  name: userData.full_name || '',
-                  role: 'student',
-                  department: studentData.department || userData.department || '',
-                  year: studentData.year || userData.year || '',
-                  rollNo: studentData.roll_number || userData.roll_number || '',
-                  sapId: studentData.sap_id || userData.sap_id || '',
-                  verified: true
-                });
-              } else {
-                // Create student record if it doesn't exist
-                try {
-                  const { data: newStudent, error } = await supabase
-                    .from('students')
-                    .insert({
-                      id: session.user.id,
-                      name: userData.full_name || '',
-                      email: userData.email || authUser.user.email || '',
-                      department: userData.department || '',
-                      year: userData.year || '',
-                      roll_number: userData.roll_number || '',
-                      sap_id: userData.sap_id || '',
-                      phone: userData.phone || ''
-                    })
-                    .select()
-                    .single();
-                    
-                  if (newStudent) {
-                    setUser({
-                      id: session.user.id,
-                      email: newStudent.email,
-                      name: newStudent.name,
-                      role: 'student',
-                      department: newStudent.department,
-                      year: newStudent.year,
-                      rollNo: newStudent.roll_number,
-                      sapId: newStudent.sap_id,
-                      verified: true
-                    });
-                  }
-                  
-                  if (error) {
-                    console.error("Error creating student record:", error);
-                  }
-                } catch (error) {
-                  console.error("Error creating student record:", error);
-                }
-              }
-            } else if (userRole === 'teacher') {
-              const { data: teacherData } = await supabase
-                .from('teachers')
-                .select('*')
-                .eq('id', session.user.id)
-                .maybeSingle();
-                
-              if (teacherData) {
-                setUser({
-                  id: session.user.id,
-                  email: userData.email || authUser.user.email || '',
-                  name: userData.full_name || '',
-                  role: 'teacher',
-                  department: userData.department,
-                  verified: true
-                });
-              } else {
-                // Create teacher record if it doesn't exist
-                try {
-                  const { data: newTeacher, error } = await supabase
-                    .from('teachers')
-                    .insert({
-                      id: session.user.id,
-                      name: userData.full_name || '',
-                      email: userData.email || authUser.user.email || ''
-                    })
-                    .select()
-                    .single();
-                    
-                  if (newTeacher) {
-                    setUser({
-                      id: session.user.id,
-                      email: newTeacher.email,
-                      name: newTeacher.name,
-                      role: 'teacher',
-                      department: userData.department,
-                      verified: true
-                    });
-                  }
-                  
-                  if (error) {
-                    console.error("Error creating teacher record:", error);
-                  }
-                } catch (error) {
-                  console.error("Error creating teacher record:", error);
-                }
-              }
-            }
-          }
-        }
+        setUser(JSON.parse(storedUser));
       } catch (error) {
-        console.error("Session check error:", error);
-      } finally {
-        setLoading(false);
+        console.error("Failed to parse stored user:", error);
+        localStorage.removeItem("user");
       }
-    };
-
-    checkSession();
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session);
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-        } else if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-          checkSession();
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, role: 'teacher' | 'student') => {
+  // Mock login function - in a real app, this would call your API
+  const login = async (emailOrName: string, password: string, role: 'teacher' | 'student') => {
     try {
       setLoading(true);
-      console.log(`Attempting to login as ${role} with email: ${email}`);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        console.error("Login error:", error);
-        throw error;
-      }
-
-      if (data.user) {
-        const userRole = data.user.user_metadata.user_type;
-        console.log("User metadata after login:", data.user.user_metadata);
+      // For teacher login, validate against allowed teachers
+      if (role === 'teacher') {
+        // For teachers, we're searching by name (not email)
+        const nameInput = emailOrName.trim();
         
-        // Check if user is trying to log in with correct role
-        if (userRole !== role) {
-          // Sign out
-          await supabase.auth.signOut();
-          toast.error(`This account is not registered as a ${role}.`);
-          return;
+        // Find exact match or partial match with teacher name
+        const teacherMatch = ALLOWED_TEACHERS.find(teacherName => 
+          teacherName.toLowerCase() === nameInput.toLowerCase() || 
+          teacherName.toLowerCase().includes(nameInput.toLowerCase()));
+        
+        if (!teacherMatch) {
+          throw new Error("Teacher not found in authorized list");
         }
-
-        // Redirect based on role
-        navigate(role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
-        toast.success('Logged in successfully');
+        
+        if (password !== TEACHER_PASSWORD) {
+          throw new Error("Invalid teacher password");
+        }
+        
+        const teacher: Teacher = {
+          id: `teacher-${Date.now()}`,
+          email: `${teacherMatch.toLowerCase().replace(/\s+/g, '.')}@example.com`, // Generate email from name
+          name: teacherMatch,
+          role: 'teacher',
+          verified: true
+        };
+        
+        setUser(teacher);
+        localStorage.setItem("user", JSON.stringify(teacher));
+        toast.success(`Welcome, ${teacherMatch}`);
+        navigate("/teacher-dashboard");
+      } else {
+        // Student login is simpler for now
+        // This would validate against your database in a real app
+        const email = emailOrName;
+        
+        // For demo purposes, mock a successful student login
+        // In a real app, you would check if the student exists in the database
+        const student: Student = {
+          id: `student-${Date.now()}`,
+          email,
+          name: email.split('@')[0], // Use part of email as name for demo
+          role: 'student',
+          rollNo: "DEMO-123", // These would come from your database in a real app
+          sapId: "SAP-123",
+          department: "Computer Science",
+          year: "3",
+          verified: true
+        };
+        
+        setUser(student);
+        localStorage.setItem("user", JSON.stringify(student));
+        toast.success("Student login successful");
+        navigate("/student-dashboard");
       }
     } catch (error: any) {
+      toast.error(error.message || "Login failed");
       console.error("Login error:", error);
-      toast.error(error.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (userData: RegisterFormData) => {
+  // Mock registration function
+  const register = async (userData: any) => {
     try {
       setLoading(true);
       
-      // Create user in Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            user_type: userData.role,
-            full_name: userData.name,
-            email: userData.email,
-            department: userData.department,
-            year: userData.year,
-            roll_number: userData.rollNo,
-            sap_id: userData.sapId,
-            phone: userData.phone
-          }
-        }
-      });
-      
-      if (error) {
-        throw error;
-      }
-      
-      if (data.user) {
-        // Create record in appropriate table
-        if (userData.role === 'student') {
-          await supabase
-            .from('students')
-            .insert({
-              id: data.user.id,
-              name: userData.name,
-              email: userData.email,
-              department: userData.department || '',
-              year: userData.year || '',
-              roll_number: userData.rollNo || '',
-              sap_id: userData.sapId || '',
-              phone: userData.phone || ''
-            });
-        } else {
-          await supabase
-            .from('teachers')
-            .insert({
-              id: data.user.id,
-              name: userData.name,
-              email: userData.email
-            });
-        }
+      if (userData.role === 'teacher') {
+        // Verify teacher is in allowed list
+        const nameMatch = ALLOWED_TEACHERS.find(name => 
+          name.toLowerCase() === userData.name.toLowerCase());
         
-        // Redirect based on role
-        navigate(userData.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
-        toast.success('Account created successfully');
+        if (!nameMatch) {
+          throw new Error("Teacher name not in allowed list");
+        }
       }
       
+      // Create new user
+      const newUser: User = {
+        id: `user-${Date.now()}`,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        department: userData.department,
+        year: userData.year,
+        rollNo: userData.rollNo,
+        sapId: userData.sapId,
+        phone: userData.phone,
+        verified: userData.role === 'teacher' // Teachers are auto-verified
+      };
+      
+      setUser(newUser);
+      localStorage.setItem("user", JSON.stringify(newUser));
+      
+      toast.success("Registration successful");
+      
+      // Redirect based on role
+      if (newUser.role === 'teacher') {
+        navigate("/teacher-dashboard");
+      } else {
+        navigate("/student-dashboard");
+      }
     } catch (error: any) {
+      toast.error(error.message || "Registration failed");
       console.error("Registration error:", error);
-      toast.error(error.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate('/login');
-      toast.success('Logged out successfully');
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast.error('Failed to log out');
-    }
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("user");
+    toast.success("Logged out successfully");
+    navigate("/");
   };
 
-  const isTeacher = () => {
-    return user?.role === 'teacher';
-  };
-
-  const isStudent = () => {
-    return user?.role === 'student';
-  };
+  const isTeacher = () => user?.role === 'teacher';
+  const isStudent = () => user?.role === 'student';
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register,
-        logout,
-        isTeacher,
-        isStudent,
-      }}
-    >
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      register, 
+      logout,
+      isTeacher,
+      isStudent
+    }}>
       {children}
     </AuthContext.Provider>
   );
