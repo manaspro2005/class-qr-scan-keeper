@@ -6,11 +6,10 @@ import { useAuth } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { user, loading, resetUsers } = useAuth();
+  const { user, loading } = useAuth();
 
   // If already logged in, redirect to appropriate dashboard
   useEffect(() => {
@@ -22,10 +21,6 @@ const Login = () => {
       }
     }
   }, [user, loading, navigate]);
-
-  const handleResetUsers = async () => {
-    await resetUsers();
-  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-secondary/30 p-4">
@@ -59,17 +54,6 @@ const Login = () => {
           </div>
           
           <LoginForm />
-          
-          <div className="mt-4 text-center">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleResetUsers}
-              className="text-xs"
-            >
-              Reset Users (For Testing)
-            </Button>
-          </div>
         </motion.div>
       </div>
     </div>
