@@ -3,10 +3,11 @@ import { useAuth, useProtectedRoute } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Scanner from "@/components/student/Scanner";
-import { LogOut, QrCode, Scan, BookOpen } from "lucide-react";
+import { LogOut, QrCode, Scan, BookOpen, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Student, AttendanceEvent } from "@/types";
+import { toast } from "sonner";
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -25,6 +26,7 @@ const StudentDashboard = () => {
         // Load events from localStorage
         const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
         let events = JSON.parse(storedEvents);
+        console.log("All events:", events);
         
         // Filter events for this student's department and year
         events = events.filter((event: AttendanceEvent) => 
@@ -32,14 +34,24 @@ const StudentDashboard = () => {
           event.year === student.year
         );
         
+        console.log("Filtered events for student:", events);
+        
+        // Convert string dates to Date objects
+        events = events.map((event: any) => ({
+          ...event,
+          createdAt: new Date(event.createdAt),
+          qrExpiry: new Date(event.qrExpiry)
+        }));
+        
         // Sort by date (newest first)
         events.sort((a: AttendanceEvent, b: AttendanceEvent) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          b.createdAt.getTime() - a.createdAt.getTime()
         );
         
         setAvailableEvents(events);
       } catch (error) {
         console.error('Failed to load events:', error);
+        toast.error('Failed to load attendance events');
       } finally {
         setLoadingEvents(false);
       }
@@ -56,6 +68,24 @@ const StudentDashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>No User Found</CardTitle>
+            <CardDescription>Please log in to continue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.href = "/"}>
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -127,7 +157,11 @@ const StudentDashboard = () => {
           </Card>
         </motion.div>
         
-        {availableEvents.length > 0 && (
+        {loadingEvents ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : availableEvents.length > 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -168,6 +202,15 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
           </motion.div>
+        ) : (
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle>No Sessions Available</CardTitle>
+              <CardDescription>
+                There are currently no attendance sessions available for your department and year.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         )}
         
         <motion.div

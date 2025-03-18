@@ -64,11 +64,12 @@ const QRGenerator = () => {
           ...parsedEventData,
           qrCode: JSON.stringify(qrDataObj),
           qrExpiry: expiry,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString(), // Convert to string for consistent parsing
           attendees: []
         });
         
         localStorage.setItem("attendanceEvents", JSON.stringify(events));
+        console.log("Event saved to localStorage:", parsedEventData.id);
       }
       
     } catch (error) {
