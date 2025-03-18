@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { User, Teacher, Student } from "@/types";
 import { toast } from "sonner";
 import { AuthContext } from "./auth-context";
@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Load user from local storage on initial render
   useEffect(() => {
@@ -144,6 +145,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     localStorage.removeItem("user");
     toast.success("Logged out successfully");
+    
+    // Fix: Always navigate to the root route when logging out
+    // This ensures we don't have route permission issues
     navigate("/");
   };
 
