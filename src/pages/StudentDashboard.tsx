@@ -1,12 +1,13 @@
 
+import { useEffect, useState } from "react";
 import { useAuth, useProtectedRoute } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Scanner from "@/components/student/Scanner";
 import { LogOut, QrCode, Scan, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
 import { Student, AttendanceEvent } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -15,29 +16,84 @@ const StudentDashboard = () => {
   const [loadingEvents, setLoadingEvents] = useState(true);
   
   useEffect(() => {
-    const loadEvents = () => {
+    const loadEvents = async () => {
       if (!user) return;
       
       try {
         // Get student data
         const student = user as Student;
+        console.log("Current student user:", student);
         
-        // Load events from localStorage
-        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-        let events = JSON.parse(storedEvents);
+        // Load events from Supabase
+        const { data: sessions, error } = await supabase
+          .from('attendance_sessions')
+          .select('*')
+          .eq('department', student.department)
+          .eq('year', student.year);
         
-        // Filter events for this student's department and year
-        events = events.filter((event: AttendanceEvent) => 
-          event.department === student.department && 
-          event.year === student.year
-        );
+        if (error) {
+          console.error("Error fetching attendance sessions:", error);
+          return;
+        }
         
-        // Sort by date (newest first)
-        events.sort((a: AttendanceEvent, b: AttendanceEvent) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        console.log("Fetched attendance sessions:", sessions);
         
-        setAvailableEvents(events);
+        if (sessions?.length) {
+          // Get attendance records to check if student has marked attendance
+          const { data: attendanceRecords, error: recordsError } = await supabase
+            .from('attendance_records')
+            .select('*')
+            .eq('student_id', student.id);
+            
+          if (recordsError) {
+            console.error("Error fetching attendance records:", recordsError);
+          }
+          
+          console.log("Fetched attendance records:", attendanceRecords);
+          
+          // Transform sessions to match AttendanceEvent type
+          const events: AttendanceEvent[] = sessions.map(session => {
+            // Check if student has already marked attendance for this session
+            const hasAttended = attendanceRecords?.some(record => 
+              record.session_id === session.id
+            );
+            
+            // Format for display
+            const date = new Date(session.created_at).toLocaleDateString();
+            const time = new Date(session.created_at).toLocaleTimeString();
+            
+            return {
+              id: session.id,
+              teacherId: session.teacher_id,
+              date,
+              time,
+              room: session.room_number,
+              subject: session.subject,
+              department: session.department,
+              year: session.year,
+              qrCode: session.qr_code,
+              qrExpiry: new Date(session.expires_at),
+              createdAt: new Date(session.created_at),
+              attendees: hasAttended ? [{ 
+                studentId: student.id,
+                name: student.name,
+                rollNo: student.rollNo,
+                sapId: student.sapId,
+                scanTime: new Date(),
+                present: true
+              }] : []
+            };
+          });
+          
+          // Sort by date (newest first)
+          events.sort((a, b) => 
+            b.createdAt.getTime() - a.createdAt.getTime()
+          );
+          
+          setAvailableEvents(events);
+        } else {
+          setAvailableEvents([]);
+        }
       } catch (error) {
         console.error('Failed to load events:', error);
       } finally {
@@ -48,7 +104,7 @@ const StudentDashboard = () => {
     loadEvents();
     
     // Refresh events periodically
-    const intervalId = setInterval(loadEvents, 30000);
+    const intervalId = setInterval(() => loadEvents(), 30000);
     return () => clearInterval(intervalId);
   }, [user]);
   
@@ -56,6 +112,14 @@ const StudentDashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">You need to be logged in to access this page</div>
       </div>
     );
   }
@@ -127,7 +191,12 @@ const StudentDashboard = () => {
           </Card>
         </motion.div>
         
-        {availableEvents.length > 0 && (
+        {loadingEvents ? (
+          <div className="text-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading available sessions...</p>
+          </div>
+        ) : availableEvents.length > 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -165,6 +234,29 @@ const StudentDashboard = () => {
                     </Card>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+          >
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  No Active Sessions
+                </CardTitle>
+                <CardDescription>
+                  There are no active attendance sessions for {student.department} Year {student.year} at this time
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-center py-4">
+                  Check back later or contact your teacher if you expected to see an attendance session.
+                </p>
               </CardContent>
             </Card>
           </motion.div>

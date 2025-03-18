@@ -38,16 +38,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   email: userData.email || authUser.user.email || '',
                   name: userData.full_name || '',
                   role: 'student',
-                  department: studentData.department,
-                  year: studentData.year,
-                  rollNo: studentData.roll_number,
-                  sapId: studentData.sap_id,
+                  department: studentData.department || userData.department || '',
+                  year: studentData.year || userData.year || '',
+                  rollNo: studentData.roll_number || userData.roll_number || '',
+                  sapId: studentData.sap_id || userData.sap_id || '',
                   verified: true
                 });
               } else {
                 // Create student record if it doesn't exist
                 try {
-                  const { data: newStudent } = await supabase
+                  const { data: newStudent, error } = await supabase
                     .from('students')
                     .insert({
                       id: session.user.id,
@@ -75,6 +75,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                       verified: true
                     });
                   }
+                  
+                  if (error) {
+                    console.error("Error creating student record:", error);
+                  }
                 } catch (error) {
                   console.error("Error creating student record:", error);
                 }
@@ -98,7 +102,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               } else {
                 // Create teacher record if it doesn't exist
                 try {
-                  const { data: newTeacher } = await supabase
+                  const { data: newTeacher, error } = await supabase
                     .from('teachers')
                     .insert({
                       id: session.user.id,
@@ -117,6 +121,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                       department: userData.department,
                       verified: true
                     });
+                  }
+                  
+                  if (error) {
+                    console.error("Error creating teacher record:", error);
                   }
                 } catch (error) {
                   console.error("Error creating teacher record:", error);
@@ -137,6 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth state changed:", event, session);
         if (event === 'SIGNED_OUT') {
           setUser(null);
         } else if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
@@ -153,17 +162,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (email: string, password: string, role: 'teacher' | 'student') => {
     try {
       setLoading(true);
+      console.log(`Attempting to login as ${role} with email: ${email}`);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
+        console.error("Login error:", error);
         throw error;
       }
 
       if (data.user) {
         const userRole = data.user.user_metadata.user_type;
+        console.log("User metadata after login:", data.user.user_metadata);
         
         // Check if user is trying to log in with correct role
         if (userRole !== role) {
