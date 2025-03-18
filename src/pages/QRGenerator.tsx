@@ -36,6 +36,7 @@ const QRGenerator = () => {
       // Generate QR data
       const expiry = new Date();
       expiry.setMinutes(expiry.getMinutes() + 5); // 5 minute expiration
+      setExpiryDate(expiry);
       
       const qrDataObj: QRData = {
         eventId: parsedEventData.id,
@@ -49,7 +50,6 @@ const QRGenerator = () => {
       };
       
       setQrData(JSON.stringify(qrDataObj));
-      setExpiryDate(expiry);
       
       // Store attendance event in localStorage
       const storedEvents = JSON.parse(localStorage.getItem("attendanceEvents") || "[]");

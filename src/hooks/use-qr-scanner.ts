@@ -66,7 +66,7 @@ export function useQRScanner() {
         name: student.name,
         rollNo: student.rollNo,
         sapId: student.sapId,
-        scanTime: new Date().toISOString(), // Store as ISO string for better compatibility
+        scanTime: new Date().toISOString(), 
         present: true
       };
       
