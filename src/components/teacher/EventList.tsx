@@ -41,11 +41,13 @@ const EventList = () => {
         
         if (storedEvents) {
           parsedEvents = JSON.parse(storedEvents);
+          console.log("All events loaded:", parsedEvents);
         }
         
         // Filter events for current teacher
         if (user?.id) {
           parsedEvents = parsedEvents.filter(event => event.teacherId === user.id);
+          console.log("Filtered events for teacher:", parsedEvents);
         }
         
         // Sort by date (newest first)
@@ -63,8 +65,8 @@ const EventList = () => {
     };
 
     loadEvents();
-    // Also set up a refresh interval (e.g., every minute)
-    const intervalId = setInterval(loadEvents, 60000);
+    // Also set up a refresh interval
+    const intervalId = setInterval(loadEvents, 10000); // refresh every 10 seconds
     
     return () => clearInterval(intervalId);
   }, [user]);
@@ -135,7 +137,7 @@ const EventList = () => {
                   <TableCell>
                     <Badge variant="secondary" className="font-normal">
                       <Users className="mr-1 h-3 w-3" />
-                      {event.attendees.length}
+                      {event.attendees ? event.attendees.length : 0}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -192,10 +194,10 @@ const EventList = () => {
             <div className="mt-4">
               <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Students Present ({selectedEvent?.attendees.length || 0})
+                Students Present ({selectedEvent?.attendees?.length || 0})
               </h4>
 
-              {selectedEvent?.attendees.length === 0 ? (
+              {!selectedEvent?.attendees || selectedEvent.attendees.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No students marked present yet.</p>
               ) : (
                 <div className="rounded-md border">

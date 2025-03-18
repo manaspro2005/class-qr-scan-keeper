@@ -36,6 +36,7 @@ const QRGenerator = () => {
       // Generate QR data
       const expiry = new Date();
       expiry.setMinutes(expiry.getMinutes() + 5); // 5 minute expiration
+      setExpiryDate(expiry);
       
       const qrDataObj: QRData = {
         eventId: parsedEventData.id,
@@ -44,31 +45,31 @@ const QRGenerator = () => {
         subject: parsedEventData.subject,
         department: parsedEventData.department,
         year: parsedEventData.year,
-        expiry: expiry,
+        expiry: expiry.toISOString(), // Store as ISO string for better compatibility
         secret: "valid" // Used to verify real QR codes
       };
       
       setQrData(JSON.stringify(qrDataObj));
-      setExpiryDate(expiry);
       
-      // Store attendance event in localStorage for demo purposes
-      // In a real app, this would be stored in your database
-      const storedEvents = localStorage.getItem("attendanceEvents") || "[]";
-      const events = JSON.parse(storedEvents);
+      // Store attendance event in localStorage
+      const storedEvents = JSON.parse(localStorage.getItem("attendanceEvents") || "[]");
       
       // Check if event already exists
-      const eventExists = events.some((e: any) => e.id === parsedEventData.id);
+      const eventExists = storedEvents.some((e: any) => e.id === parsedEventData.id);
       
       if (!eventExists) {
-        events.push({
+        // Create new event object with proper structure
+        const newEvent = {
           ...parsedEventData,
           qrCode: JSON.stringify(qrDataObj),
-          qrExpiry: expiry,
-          createdAt: new Date(),
+          qrExpiry: expiry.toISOString(),
+          createdAt: new Date().toISOString(),
           attendees: []
-        });
+        };
         
-        localStorage.setItem("attendanceEvents", JSON.stringify(events));
+        storedEvents.push(newEvent);
+        localStorage.setItem("attendanceEvents", JSON.stringify(storedEvents));
+        console.log("New event created:", newEvent.id);
       }
       
     } catch (error) {

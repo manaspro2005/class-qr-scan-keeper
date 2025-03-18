@@ -34,8 +34,8 @@ export interface AttendanceEvent {
   department: string;
   year: string;
   qrCode: string;
-  qrExpiry: Date;
-  createdAt: Date;
+  qrExpiry: string; // Changed from Date to string
+  createdAt: string; // Changed from Date to string
   attendees: Attendee[];
 }
 
@@ -44,7 +44,7 @@ export interface Attendee {
   name: string;
   rollNo: string;
   sapId: string;
-  scanTime: Date;
+  scanTime: string; // Changed from Date to string
   present: boolean;
 }
 
@@ -55,7 +55,7 @@ export interface QRData {
   subject: string;
   department: string;
   year: string;
-  expiry: Date;
+  expiry: string; // Changed from Date to string
   secret: string;
 }
 
