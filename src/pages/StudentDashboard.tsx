@@ -26,11 +26,16 @@ const StudentDashboard = () => {
         const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
         let events = JSON.parse(storedEvents);
         
+        console.log("All events:", events);
+        console.log("Student department:", student.department, "Year:", student.year);
+        
         // Filter events for this student's department and year
         events = events.filter((event: AttendanceEvent) => 
           event.department === student.department && 
           event.year === student.year
         );
+        
+        console.log("Filtered events for student:", events);
         
         // Sort by date (newest first)
         events.sort((a: AttendanceEvent, b: AttendanceEvent) => 
@@ -48,7 +53,7 @@ const StudentDashboard = () => {
     loadEvents();
     
     // Refresh events periodically
-    const intervalId = setInterval(loadEvents, 30000);
+    const intervalId = setInterval(loadEvents, 10000); // refresh every 10 seconds
     return () => clearInterval(intervalId);
   }, [user]);
   
@@ -127,7 +132,7 @@ const StudentDashboard = () => {
           </Card>
         </motion.div>
         
-        {availableEvents.length > 0 && (
+        {availableEvents.length > 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -152,7 +157,7 @@ const StudentDashboard = () => {
                           <h3 className="font-medium">{event.subject}</h3>
                           <p className="text-sm text-muted-foreground">Room {event.room} • {event.date} at {event.time}</p>
                         </div>
-                        {event.attendees.some(a => a.studentId === student.id) ? (
+                        {event.attendees && event.attendees.some(a => a.studentId === student.id) ? (
                           <div className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
                             Marked
                           </div>
@@ -168,7 +173,25 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
           </motion.div>
-        )}
+        ) : !loadingEvents ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+          >
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  No Available Sessions
+                </CardTitle>
+                <CardDescription>
+                  There are no active attendance sessions for {student.department} Year {student.year} at this time
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </motion.div>
+        ) : null}
         
         <motion.div
           initial={{ opacity: 0, y: 20 }}
