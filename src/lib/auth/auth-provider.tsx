@@ -18,54 +18,110 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+          // Get additional user information from auth metadata
+          const { data: authUser } = await supabase.auth.getUser();
+          const userData = authUser?.user?.user_metadata;
+          
+          if (userData) {
+            const userRole = userData.user_type as 'student' | 'teacher';
             
-          if (profileError) {
-            console.error("Error fetching profile:", profileError);
-            setUser(null);
-          } else if (profile) {
-            // Get additional details based on user type
-            if (profile.user_type === 'student') {
-              const { data: studentProfile, error: studentError } = await supabase
-                .from('student_profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-                
-              if (studentError) {
-                console.error("Error fetching student profile:", studentError);
-              } else if (studentProfile) {
-                setUser({
-                  id: session.user.id,
-                  email: profile.email,
-                  name: profile.full_name,
-                  role: 'student',
-                  department: studentProfile.department,
-                  year: studentProfile.year,
-                  rollNo: studentProfile.roll_number,
-                  sapId: studentProfile.sap_id,
-                  verified: true
-                });
-              }
-            } else if (profile.user_type === 'teacher') {
-              const { data: teacherProfile } = await supabase
-                .from('teacher_profiles')
+            if (userRole === 'student') {
+              const { data: studentData } = await supabase
+                .from('students')
                 .select('*')
                 .eq('id', session.user.id)
                 .maybeSingle();
                 
-              setUser({
-                id: session.user.id,
-                email: profile.email,
-                name: profile.full_name,
-                role: 'teacher',
-                department: teacherProfile?.department,
-                verified: true
-              });
+              if (studentData) {
+                setUser({
+                  id: session.user.id,
+                  email: userData.email || authUser.user.email || '',
+                  name: userData.full_name || '',
+                  role: 'student',
+                  department: studentData.department,
+                  year: studentData.year,
+                  rollNo: studentData.roll_number,
+                  sapId: studentData.sap_id,
+                  verified: true
+                });
+              } else {
+                // Create student record if it doesn't exist
+                try {
+                  const { data: newStudent } = await supabase
+                    .from('students')
+                    .insert({
+                      id: session.user.id,
+                      name: userData.full_name || '',
+                      email: userData.email || authUser.user.email || '',
+                      department: userData.department || '',
+                      year: userData.year || '',
+                      roll_number: userData.roll_number || '',
+                      sap_id: userData.sap_id || '',
+                      phone: userData.phone || ''
+                    })
+                    .select()
+                    .single();
+                    
+                  if (newStudent) {
+                    setUser({
+                      id: session.user.id,
+                      email: newStudent.email,
+                      name: newStudent.name,
+                      role: 'student',
+                      department: newStudent.department,
+                      year: newStudent.year,
+                      rollNo: newStudent.roll_number,
+                      sapId: newStudent.sap_id,
+                      verified: true
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error creating student record:", error);
+                }
+              }
+            } else if (userRole === 'teacher') {
+              const { data: teacherData } = await supabase
+                .from('teachers')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+                
+              if (teacherData) {
+                setUser({
+                  id: session.user.id,
+                  email: userData.email || authUser.user.email || '',
+                  name: userData.full_name || '',
+                  role: 'teacher',
+                  department: userData.department,
+                  verified: true
+                });
+              } else {
+                // Create teacher record if it doesn't exist
+                try {
+                  const { data: newTeacher } = await supabase
+                    .from('teachers')
+                    .insert({
+                      id: session.user.id,
+                      name: userData.full_name || '',
+                      email: userData.email || authUser.user.email || ''
+                    })
+                    .select()
+                    .single();
+                    
+                  if (newTeacher) {
+                    setUser({
+                      id: session.user.id,
+                      email: newTeacher.email,
+                      name: newTeacher.name,
+                      role: 'teacher',
+                      department: userData.department,
+                      verified: true
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error creating teacher record:", error);
+                }
+              }
             }
           }
         }
@@ -107,14 +163,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (data.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('id', data.user.id)
-          .single();
-
+        const userRole = data.user.user_metadata.user_type;
+        
         // Check if user is trying to log in with correct role
-        if (profile?.user_type !== role) {
+        if (userRole !== role) {
           // Sign out
           await supabase.auth.signOut();
           toast.error(`This account is not registered as a ${role}.`);
@@ -137,21 +189,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       
-      // Check if email already exists
-      const { data: existingUsers, error: checkError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', userData.email);
-        
-      if (checkError) {
-        throw checkError;
-      }
-      
-      if (existingUsers && existingUsers.length > 0) {
-        toast.error('Email already in use');
-        return;
-      }
-      
       // Create user in Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
@@ -160,10 +197,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           data: {
             user_type: userData.role,
             full_name: userData.name,
+            email: userData.email,
             department: userData.department,
             year: userData.year,
             roll_number: userData.rollNo,
             sap_id: userData.sapId,
+            phone: userData.phone
           }
         }
       });
@@ -172,9 +211,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
       
-      // Redirect based on role
-      navigate(userData.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
-      toast.success('Account created successfully');
+      if (data.user) {
+        // Create record in appropriate table
+        if (userData.role === 'student') {
+          await supabase
+            .from('students')
+            .insert({
+              id: data.user.id,
+              name: userData.name,
+              email: userData.email,
+              department: userData.department || '',
+              year: userData.year || '',
+              roll_number: userData.rollNo || '',
+              sap_id: userData.sapId || '',
+              phone: userData.phone || ''
+            });
+        } else {
+          await supabase
+            .from('teachers')
+            .insert({
+              id: data.user.id,
+              name: userData.name,
+              email: userData.email
+            });
+        }
+        
+        // Redirect based on role
+        navigate(userData.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
+        toast.success('Account created successfully');
+      }
       
     } catch (error: any) {
       console.error("Registration error:", error);
