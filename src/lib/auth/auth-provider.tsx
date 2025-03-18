@@ -5,7 +5,6 @@ import { User, Teacher, Student } from "@/types";
 import { toast } from "sonner";
 import { AuthContext } from "./auth-context";
 import { ALLOWED_TEACHERS, TEACHER_PASSWORD } from "./constants";
-import { clearUsers } from "@/lib/mongodb";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -64,27 +63,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         navigate("/teacher-dashboard");
       } else {
         // Student login is simpler for now
-        // This would validate against your database in a real app
         const email = emailOrName;
         
-        // For demo purposes, mock a successful student login
-        // In a real app, you would check if the student exists in the database
-        const student: Student = {
-          id: `student-${Date.now()}`,
-          email,
-          name: email.split('@')[0], // Use part of email as name for demo
-          role: 'student',
-          rollNo: "DEMO-123", // These would come from your database in a real app
-          sapId: "SAP-123",
-          department: "Computer Science",
-          year: "3",
-          verified: true
-        };
+        // Get the existing users from localStorage
+        const existingUsers = JSON.parse(localStorage.getItem("allUsers") || "[]");
+        const matchedUser = existingUsers.find((u: any) => 
+          u.email === email && u.role === 'student'
+        );
         
-        setUser(student);
-        localStorage.setItem("user", JSON.stringify(student));
-        toast.success("Student login successful");
-        navigate("/student-dashboard");
+        if (matchedUser) {
+          setUser(matchedUser);
+          localStorage.setItem("user", JSON.stringify(matchedUser));
+          toast.success("Student login successful");
+          navigate("/student-dashboard");
+        } else {
+          throw new Error("Student not found. Please register first.");
+        }
       }
     } catch (error: any) {
       toast.error(error.message || "Login failed");
@@ -123,6 +117,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         verified: userData.role === 'teacher' // Teachers are auto-verified
       };
       
+      // Store in local storage array of all users
+      const existingUsers = JSON.parse(localStorage.getItem("allUsers") || "[]");
+      
+      // Check if email already exists
+      if (existingUsers.some((u: any) => u.email === userData.email)) {
+        throw new Error("Email already registered");
+      }
+      
+      existingUsers.push(newUser);
+      localStorage.setItem("allUsers", JSON.stringify(existingUsers));
+      
+      // Also set as current user
       setUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));
       
@@ -152,14 +158,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     navigate("/");
   };
 
-  // Clear all users from database (for testing)
+  // Clear all users from localStorage (for testing)
   const resetUsers = async () => {
     try {
       setLoading(true);
-      const success = await clearUsers();
-      if (success) {
-        toast.success("All users have been removed for testing");
-      }
+      localStorage.removeItem("allUsers");
+      toast.success("All users have been reset for testing");
     } catch (error) {
       console.error("Failed to reset users:", error);
       toast.error("Failed to reset users");
