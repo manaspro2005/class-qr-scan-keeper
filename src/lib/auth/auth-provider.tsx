@@ -5,6 +5,7 @@ import { User, Teacher, Student } from "@/types";
 import { toast } from "sonner";
 import { AuthContext } from "./auth-context";
 import { ALLOWED_TEACHERS, TEACHER_PASSWORD } from "./constants";
+import { clearUsers } from "@/lib/mongodb";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -151,6 +152,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     navigate("/");
   };
 
+  // Clear all users from database (for testing)
+  const resetUsers = async () => {
+    try {
+      setLoading(true);
+      const success = await clearUsers();
+      if (success) {
+        toast.success("All users have been removed for testing");
+      }
+    } catch (error) {
+      console.error("Failed to reset users:", error);
+      toast.error("Failed to reset users");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isTeacher = () => user?.role === 'teacher';
   const isStudent = () => user?.role === 'student';
 
@@ -161,6 +178,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       login, 
       register, 
       logout,
+      resetUsers,
       isTeacher,
       isStudent
     }}>

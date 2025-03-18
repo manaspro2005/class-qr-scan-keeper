@@ -53,6 +53,25 @@ export const COLLECTIONS = {
   ATTENDEES: "attendees"
 };
 
+// Function to clear a specific collection
+export async function clearCollection(collectionName: string) {
+  try {
+    const db = await getDatabase();
+    await db.collection(collectionName).deleteMany({});
+    console.log(`Collection ${collectionName} cleared successfully`);
+    return true;
+  } catch (error) {
+    console.error(`Failed to clear collection ${collectionName}:`, error);
+    toast.error(`Failed to clear ${collectionName} collection`);
+    return false;
+  }
+}
+
+// Function specifically to clear users for testing
+export async function clearUsers() {
+  return clearCollection(COLLECTIONS.USERS);
+}
+
 // Close the connection when the application shuts down
 process.on('SIGINT', async () => {
   await client.close();

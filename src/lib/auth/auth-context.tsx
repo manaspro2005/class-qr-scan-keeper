@@ -9,6 +9,7 @@ export type AuthContextType = {
   login: (email: string, password: string, role: 'teacher' | 'student') => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => void;
+  resetUsers: () => Promise<void>;
   isTeacher: () => boolean;
   isStudent: () => boolean;
 };
@@ -19,6 +20,7 @@ export const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: () => {},
+  resetUsers: async () => {},
   isTeacher: () => false,
   isStudent: () => false,
 });
