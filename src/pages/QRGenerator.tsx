@@ -85,7 +85,7 @@ const QRGenerator = () => {
         
         <QRDisplayCard
           eventData={eventData}
-          qrData={qrData}
+          qrData={JSON.stringify(qrData)}
           expiryDate={expiryDate}
           downloadQRCode={downloadQRCode}
           copyQRData={copyQRData}
