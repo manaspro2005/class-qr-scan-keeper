@@ -73,6 +73,9 @@ const QRGenerator = () => {
           }
           
           // Insert event into Supabase
+          // Convert QRData to a plain object that can be stored as JSON
+          const qrDataForStorage = JSON.parse(JSON.stringify(qrDataObj));
+          
           const { error } = await supabase
             .from('attendance_events')
             .insert({
@@ -85,7 +88,7 @@ const QRGenerator = () => {
               year: parsedEventData.year,
               date: parsedEventData.date,
               time: parsedEventData.time,
-              qr_data: qrDataObj,
+              qr_data: qrDataForStorage,
               qr_expiry: expiry.toISOString()
             });
           

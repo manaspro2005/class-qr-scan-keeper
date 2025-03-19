@@ -35,6 +35,11 @@ export function useQRScanner() {
       let qrData: QRData;
       try {
         qrData = JSON.parse(data);
+        
+        // If expiry is a string, convert it to a Date object
+        if (typeof qrData.expiry === 'string') {
+          qrData.expiry = new Date(qrData.expiry);
+        }
       } catch (e) {
         throw new Error('Invalid QR code format');
       }
