@@ -9,7 +9,92 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      attendance_events: {
+        Row: {
+          created_at: string
+          date: string
+          department: string
+          id: string
+          qr_data: Json
+          qr_expiry: string
+          room: string
+          subject: string
+          teacher_id: string
+          teacher_name: string
+          time: string
+          year: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          department: string
+          id?: string
+          qr_data: Json
+          qr_expiry: string
+          room: string
+          subject: string
+          teacher_id: string
+          teacher_name: string
+          time: string
+          year: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          department?: string
+          id?: string
+          qr_data?: Json
+          qr_expiry?: string
+          room?: string
+          subject?: string
+          teacher_id?: string
+          teacher_name?: string
+          time?: string
+          year?: string
+        }
+        Relationships: []
+      }
+      attendance_records: {
+        Row: {
+          event_id: string
+          id: string
+          present: boolean
+          roll_no: string
+          sap_id: string
+          scan_time: string
+          student_id: string
+          student_name: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          present?: boolean
+          roll_no: string
+          sap_id: string
+          scan_time?: string
+          student_id: string
+          student_name: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          present?: boolean
+          roll_no?: string
+          sap_id?: string
+          scan_time?: string
+          student_id?: string
+          student_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

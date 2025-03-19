@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Student, AttendanceEvent } from "@/types";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -16,39 +17,86 @@ const StudentDashboard = () => {
   const [loadingEvents, setLoadingEvents] = useState(true);
   
   useEffect(() => {
-    const loadEvents = () => {
+    const loadEvents = async () => {
       if (!user) return;
       
       try {
+        setLoadingEvents(true);
+        
         // Get student data
         const student = user as Student;
         
-        // Load events from localStorage
-        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-        let events = JSON.parse(storedEvents);
-        console.log("All events:", events);
+        // Load events from Supabase
+        const { data: eventsData, error } = await supabase
+          .from('attendance_events')
+          .select(`
+            id, 
+            subject, 
+            room, 
+            department, 
+            year, 
+            date, 
+            time, 
+            qr_expiry,
+            created_at
+          `)
+          .eq('department', student.department)
+          .eq('year', student.year)
+          .order('created_at', { ascending: false });
         
-        // Filter events for this student's department and year
-        events = events.filter((event: AttendanceEvent) => 
-          event.department === student.department && 
-          event.year === student.year
-        );
+        if (error) {
+          throw error;
+        }
         
-        console.log("Filtered events for student:", events);
+        console.log("All events:", eventsData);
         
-        // Convert string dates to Date objects
-        events = events.map((event: any) => ({
-          ...event,
-          createdAt: new Date(event.createdAt),
-          qrExpiry: new Date(event.qrExpiry)
+        if (!eventsData) {
+          setAvailableEvents([]);
+          return;
+        }
+        
+        // Get attendance records to check which events the student has already attended
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance_records')
+          .select('event_id, student_id')
+          .eq('student_id', student.id);
+        
+        if (attendanceError) {
+          console.error('Error fetching attendance records:', attendanceError);
+        }
+        
+        // Convert to our app's AttendanceEvent format
+        const formattedEvents: AttendanceEvent[] = eventsData.map((event) => ({
+          id: event.id,
+          teacherId: '', // Not needed for student view
+          subject: event.subject,
+          room: event.room,
+          department: event.department,
+          year: event.year,
+          date: event.date,
+          time: event.time,
+          qrCode: '', // Not needed for student view
+          qrExpiry: new Date(event.qr_expiry),
+          createdAt: new Date(event.created_at),
+          attendees: attendanceData 
+            ? [{
+                studentId: student.id,
+                name: student.name,
+                rollNo: student.rollNo,
+                sapId: student.sapId,
+                scanTime: new Date(),
+                present: true
+              }].filter(a => 
+                attendanceData.some(record => 
+                  record.event_id === event.id && record.student_id === student.id
+                )
+              )
+            : []
         }));
         
-        // Sort by date (newest first)
-        events.sort((a: AttendanceEvent, b: AttendanceEvent) => 
-          b.createdAt.getTime() - a.createdAt.getTime()
-        );
+        console.log("Filtered events for student:", formattedEvents);
         
-        setAvailableEvents(events);
+        setAvailableEvents(formattedEvents);
       } catch (error) {
         console.error('Failed to load events:', error);
         toast.error('Failed to load attendance events');
@@ -60,7 +108,7 @@ const StudentDashboard = () => {
     loadEvents();
     
     // Refresh events periodically
-    const intervalId = setInterval(loadEvents, 30000);
+    const intervalId = setInterval(() => loadEvents(), 30000);
     return () => clearInterval(intervalId);
   }, [user]);
   

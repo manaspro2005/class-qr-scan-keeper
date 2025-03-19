@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { QRData } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
 const QRGenerator = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const QRGenerator = () => {
   const [eventData, setEventData] = useState<any>(null);
   const [qrData, setQrData] = useState<string>("");
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
   
   useEffect(() => {
     // Get event data from session storage
@@ -51,26 +53,57 @@ const QRGenerator = () => {
       setQrData(JSON.stringify(qrDataObj));
       setExpiryDate(expiry);
       
-      // Store attendance event in localStorage for demo purposes
-      // In a real app, this would be stored in your database
-      const storedEvents = localStorage.getItem("attendanceEvents") || "[]";
-      const events = JSON.parse(storedEvents);
-      
-      // Check if event already exists
-      const eventExists = events.some((e: any) => e.id === parsedEventData.id);
-      
-      if (!eventExists) {
-        events.push({
-          ...parsedEventData,
-          qrCode: JSON.stringify(qrDataObj),
-          qrExpiry: expiry,
-          createdAt: new Date().toISOString(), // Convert to string for consistent parsing
-          attendees: []
-        });
+      // Store attendance event in Supabase
+      const saveEvent = async () => {
+        if (saving) return;
+        setSaving(true);
         
-        localStorage.setItem("attendanceEvents", JSON.stringify(events));
-        console.log("Event saved to localStorage:", parsedEventData.id);
-      }
+        try {
+          // Check if event already exists in Supabase
+          const { data: existingEvents } = await supabase
+            .from('attendance_events')
+            .select('id')
+            .eq('id', parsedEventData.id)
+            .single();
+          
+          if (existingEvents) {
+            console.log("Event already exists in Supabase:", parsedEventData.id);
+            setSaving(false);
+            return;
+          }
+          
+          // Insert event into Supabase
+          const { error } = await supabase
+            .from('attendance_events')
+            .insert({
+              id: parsedEventData.id,
+              teacher_id: parsedEventData.teacherId,
+              teacher_name: parsedEventData.teacherName,
+              subject: parsedEventData.subject,
+              room: parsedEventData.room,
+              department: parsedEventData.department,
+              year: parsedEventData.year,
+              date: parsedEventData.date,
+              time: parsedEventData.time,
+              qr_data: qrDataObj,
+              qr_expiry: expiry.toISOString()
+            });
+          
+          if (error) {
+            console.error('Error saving event to Supabase:', error);
+            toast.error('Failed to save event');
+          } else {
+            console.log("Event saved to Supabase:", parsedEventData.id);
+          }
+        } catch (error) {
+          console.error('Error in saveEvent:', error);
+          toast.error('Failed to save event');
+        } finally {
+          setSaving(false);
+        }
+      };
+      
+      saveEvent();
       
     } catch (error) {
       console.error("Failed to parse event data:", error);

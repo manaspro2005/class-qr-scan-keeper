@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { QRData, Student } from '@/types';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useQRScanner() {
   const { user } = useAuth();
@@ -60,37 +61,40 @@ export function useQRScanner() {
         throw new Error(`This attendance is for ${qrData.department} Year ${qrData.year} students only`);
       }
       
-      // Mark attendance
-      const attendance = {
-        studentId: student.id,
-        name: student.name,
-        rollNo: student.rollNo,
-        sapId: student.sapId,
-        scanTime: new Date(),
-        present: true
-      };
+      // Check if student already marked attendance
+      const { data: existingAttendance, error: checkError } = await supabase
+        .from('attendance_records')
+        .select('id')
+        .eq('event_id', qrData.eventId)
+        .eq('student_id', student.id)
+        .single();
       
-      // Save attendance to event in localStorage
-      const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-      const events = JSON.parse(storedEvents);
-      
-      // Find the event
-      const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
-      
-      if (eventIndex === -1) {
-        throw new Error('Event not found');
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        console.error('Error checking existing attendance:', checkError);
+        throw new Error('Failed to check attendance status');
       }
       
-      // Check if student already marked attendance
-      if (events[eventIndex].attendees.some((a: any) => a.studentId === student.id)) {
+      if (existingAttendance) {
         throw new Error('You have already marked your attendance for this session');
       }
       
-      // Add attendance to event
-      events[eventIndex].attendees.push(attendance);
+      // Mark attendance in Supabase
+      const { error: insertError } = await supabase
+        .from('attendance_records')
+        .insert({
+          event_id: qrData.eventId,
+          student_id: student.id,
+          student_name: student.name,
+          roll_no: student.rollNo,
+          sap_id: student.sapId,
+          scan_time: new Date().toISOString(),
+          present: true
+        });
       
-      // Save updated events
-      localStorage.setItem('attendanceEvents', JSON.stringify(events));
+      if (insertError) {
+        console.error('Error marking attendance:', insertError);
+        throw new Error('Failed to mark attendance');
+      }
       
       // Show success
       setSuccess(true);
