@@ -27,6 +27,7 @@ export interface Student extends User {
 export interface AttendanceEvent {
   id: string;
   teacherId: string;
+  teacher_name?: string; // Add this field to match Supabase schema
   date: string;
   time: string;
   room: string;
