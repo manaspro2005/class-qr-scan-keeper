@@ -37,6 +37,7 @@ export interface AttendanceEvent {
   qrExpiry: Date;
   createdAt: Date;
   attendees: Attendee[];
+  absentProcessed: boolean;
 }
 
 export interface Attendee {
@@ -83,4 +84,12 @@ export interface AttendanceFormData {
   subject: string;
   department: string;
   year: string;
+}
+
+export interface StudentData {
+  id: string;
+  name: string;
+  rollNo: string;
+  sapId: string;
+  present: boolean;
 }

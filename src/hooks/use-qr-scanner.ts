@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { QRData, Student } from '@/types';
 import { useAuth } from '@/lib/auth';
+import { markAttendance } from '@/lib/mongodb';
 
 export function useQRScanner() {
   const { user } = useAuth();
@@ -70,27 +71,40 @@ export function useQRScanner() {
         present: true
       };
       
-      // Save attendance to event in localStorage
-      const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-      const events = JSON.parse(storedEvents);
+      // Save attendance to MongoDB
+      const result = await markAttendance(qrData.eventId, attendance);
       
-      // Find the event
-      const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
-      
-      if (eventIndex === -1) {
-        throw new Error('Event not found');
+      if (!result.success) {
+        if (result.message === "Already marked attendance") {
+          throw new Error('You have already marked your attendance for this session');
+        }
+        throw new Error('Failed to mark attendance');
       }
       
-      // Check if student already marked attendance
-      if (events[eventIndex].attendees.some((a: any) => a.studentId === student.id)) {
-        throw new Error('You have already marked your attendance for this session');
+      // Also update localStorage for demo/fallback
+      try {
+        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
+        const events = JSON.parse(storedEvents);
+        
+        // Find the event
+        const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
+        
+        if (eventIndex !== -1) {
+          // Check if student already marked attendance
+          if (events[eventIndex].attendees.some((a: any) => a.studentId === student.id)) {
+            // Already marked, but continue because MongoDB operation was successful
+          } else {
+            // Add attendance to event
+            events[eventIndex].attendees.push(attendance);
+            
+            // Save updated events
+            localStorage.setItem('attendanceEvents', JSON.stringify(events));
+          }
+        }
+      } catch (e) {
+        console.error("LocalStorage update failed:", e);
+        // Continue since the MongoDB operation was successful
       }
-      
-      // Add attendance to event
-      events[eventIndex].attendees.push(attendance);
-      
-      // Save updated events
-      localStorage.setItem('attendanceEvents', JSON.stringify(events));
       
       // Show success
       setSuccess(true);
