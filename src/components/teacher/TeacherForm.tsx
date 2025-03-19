@@ -53,8 +53,8 @@ const TeacherForm = () => {
     try {
       setLoading(true);
       
-      // Create unique event ID
-      const eventId = `event-${Date.now()}`;
+      // In a real app, this would send data to your API
+      // For now, we'll just simulate success and navigate to QR generation
       
       // Create event object to pass to QR generator
       const eventData = {
@@ -62,10 +62,8 @@ const TeacherForm = () => {
         teacherId: user?.id || "",
         teacherName: user?.name || "",
         date: currentDate,
-        id: eventId
+        id: `event-${Date.now()}`
       };
-      
-      console.log("Creating new attendance event:", eventData);
       
       // Store event data in session storage to use on QR generator page
       sessionStorage.setItem("attendanceEvent", JSON.stringify(eventData));

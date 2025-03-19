@@ -5,7 +5,6 @@ import { User, Teacher, Student } from "@/types";
 import { toast } from "sonner";
 import { AuthContext } from "./auth-context";
 import { ALLOWED_TEACHERS, TEACHER_PASSWORD } from "./constants";
-import { supabase } from "@/integrations/supabase/client";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -75,12 +74,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           role: 'student',
           rollNo: "DEMO-123", // These would come from your database in a real app
           sapId: "SAP-123",
-          department: "Computer Science", // Important to set department and year
+          department: "Computer Science",
           year: "3",
           verified: true
         };
-        
-        console.log("Student login:", student);
         
         setUser(student);
         localStorage.setItem("user", JSON.stringify(student));
@@ -123,8 +120,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         phone: userData.phone,
         verified: userData.role === 'teacher' // Teachers are auto-verified
       };
-      
-      console.log("Registered user:", newUser);
       
       setUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));

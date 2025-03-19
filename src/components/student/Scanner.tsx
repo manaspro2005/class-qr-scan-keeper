@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useQRScanner, ScanState } from '@/hooks/use-qr-scanner';
+import { useQRScanner } from '@/hooks/use-qr-scanner';
 import ScannerStart from './scanner/ScannerStart';
 import ScannerProcessing from './scanner/ScannerProcessing';
 import ScannerActive from './scanner/ScannerActive';
@@ -10,12 +10,14 @@ import ScannerError from './scanner/ScannerError';
 
 const Scanner = () => {
   const {
-    scanState,
-    errorMessage,
+    scanning,
+    success,
+    error,
+    processing,
+    handleScan,
+    handleError,
     startScanning,
-    cancelScanning,
-    processQRData,
-    handleScanError
+    stopScanning
   } = useQRScanner();
 
   return (
@@ -27,23 +29,23 @@ const Scanner = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {scanState === ScanState.IDLE && (
+        {!scanning && !success && !error && !processing && (
           <ScannerStart onStart={startScanning} />
         )}
 
-        {scanState === ScanState.PROCESSING && <ScannerProcessing />}
+        {processing && <ScannerProcessing />}
 
-        {scanState === ScanState.SCANNING && (
+        {scanning && (
           <ScannerActive 
-            onScan={processQRData} 
-            onError={handleScanError} 
-            onCancel={cancelScanning} 
+            onScan={handleScan} 
+            onError={handleError} 
+            onCancel={stopScanning} 
           />
         )}
 
-        {scanState === ScanState.SUCCESS && <ScannerSuccess />}
+        {success && <ScannerSuccess />}
 
-        {scanState === ScanState.ERROR && <ScannerError errorMessage={errorMessage} />}
+        {error && <ScannerError errorMessage={error} />}
       </CardContent>
     </Card>
   );

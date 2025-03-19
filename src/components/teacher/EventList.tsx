@@ -24,7 +24,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { supabase } from "@/integrations/supabase/client";
 
 const EventList = () => {
   const { user } = useAuth();
@@ -33,68 +32,28 @@ const EventList = () => {
   const [selectedEvent, setSelectedEvent] = useState<AttendanceEvent | null>(null);
 
   useEffect(() => {
-    const loadEvents = async () => {
-      if (!user?.id) return;
-      
+    const loadEvents = () => {
       try {
-        setLoading(true);
+        // In a real app, this would fetch from your API
+        // For demo, we'll load from local storage
+        const storedEvents = localStorage.getItem('attendanceEvents');
+        let parsedEvents: AttendanceEvent[] = [];
         
-        // Fetch events from Supabase
-        const { data: eventsData, error } = await supabase
-          .from('attendance_events')
-          .select('*')
-          .eq('teacher_id', user.id)
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          throw error;
+        if (storedEvents) {
+          parsedEvents = JSON.parse(storedEvents);
         }
         
-        if (!eventsData) {
-          setEvents([]);
-          return;
+        // Filter events for current teacher
+        if (user?.id) {
+          parsedEvents = parsedEvents.filter(event => event.teacherId === user.id);
         }
         
-        // Get attendees for each event
-        const eventIds = eventsData.map(event => event.id);
+        // Sort by date (newest first)
+        parsedEvents.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
         
-        const { data: attendeesData, error: attendeesError } = await supabase
-          .from('attendance_records')
-          .select('*')
-          .in('event_id', eventIds);
-        
-        if (attendeesError) {
-          console.error('Error fetching attendees:', attendeesError);
-        }
-        
-        // Format events data
-        const formattedEvents: AttendanceEvent[] = eventsData.map(event => ({
-          id: event.id,
-          teacherId: event.teacher_id,
-          subject: event.subject,
-          room: event.room,
-          department: event.department,
-          year: event.year,
-          date: event.date,
-          time: event.time,
-          qrCode: JSON.stringify(event.qr_data),
-          qrExpiry: new Date(event.qr_expiry),
-          createdAt: new Date(event.created_at),
-          attendees: attendeesData 
-            ? attendeesData
-                .filter(a => a.event_id === event.id)
-                .map(a => ({
-                  studentId: a.student_id,
-                  name: a.student_name,
-                  rollNo: a.roll_no,
-                  sapId: a.sap_id,
-                  scanTime: new Date(a.scan_time),
-                  present: a.present
-                }))
-            : []
-        }));
-        
-        setEvents(formattedEvents);
+        setEvents(parsedEvents);
       } catch (error) {
         console.error('Failed to load events:', error);
         toast.error('Failed to load attendance events');
@@ -104,9 +63,9 @@ const EventList = () => {
     };
 
     loadEvents();
-    
-    // Set up an interval to refresh events every minute
+    // Also set up a refresh interval (e.g., every minute)
     const intervalId = setInterval(loadEvents, 60000);
+    
     return () => clearInterval(intervalId);
   }, [user]);
 
