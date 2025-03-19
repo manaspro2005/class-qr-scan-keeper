@@ -1,152 +1,142 @@
 
-import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
-import { QRData, Student } from '@/types';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export enum ScanState {
+  IDLE = 'idle',
+  SCANNING = 'scanning',
+  PROCESSING = 'processing',
+  SUCCESS = 'success',
+  ERROR = 'error'
+}
 
 export function useQRScanner() {
   const { user } = useAuth();
-  const [scanning, setScanning] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [scanState, setScanState] = useState<ScanState>(ScanState.IDLE);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // Reset states when hook unmounts
-  useEffect(() => {
-    return () => {
-      setScanning(false);
-      setSuccess(false);
-      setError(null);
-      setProcessing(false);
-    };
-  }, []);
+  const startScanning = () => {
+    setScanState(ScanState.SCANNING);
+    setErrorMessage("");
+  };
 
-  const handleScan = async (data: string) => {
-    if (!data || processing) return;
-    
+  const cancelScanning = () => {
+    setScanState(ScanState.IDLE);
+    setErrorMessage("");
+  };
+
+  const processQRData = async (qrData: string) => {
+    if (!user) {
+      setErrorMessage("User not authenticated");
+      setScanState(ScanState.ERROR);
+      return;
+    }
+
     try {
-      setProcessing(true);
-      setScanning(false);
+      setScanState(ScanState.PROCESSING);
       
-      console.log('QR Data:', data);
-      
-      // Decode QR data
-      let qrData: QRData;
-      try {
-        qrData = JSON.parse(data);
-        
-        // If expiry is a string, convert it to a Date object
-        if (typeof qrData.expiry === 'string') {
-          qrData.expiry = new Date(qrData.expiry);
-        }
-      } catch (e) {
-        throw new Error('Invalid QR code format');
+      // Parse the QR data
+      const parsedData = JSON.parse(qrData);
+      console.log("Parsed QR data:", parsedData);
+
+      // Validate attendance data
+      if (!parsedData.eventId || !parsedData.expiry || !parsedData.token) {
+        throw new Error("Invalid QR code data");
       }
-      
-      // Check if QR code is expired
-      const expiry = new Date(qrData.expiry);
-      if (new Date() > expiry) {
-        throw new Error('QR code has expired');
+
+      // Convert expiry to Date if it's a string
+      const expiryDate = typeof parsedData.expiry === 'string' 
+        ? new Date(parsedData.expiry) 
+        : parsedData.expiry;
+
+      // Check if QR code has expired
+      if (new Date() > expiryDate) {
+        throw new Error("This QR code has expired");
       }
-      
-      // Check for prank QR code
-      if (qrData.secret === 'prank') {
-        throw new Error('Oops! You got fooled. This is a fake QR code.');
-      }
-      
-      // Get student data
-      const student = user as Student;
-      if (!student) {
-        throw new Error('Student data not found');
-      }
-      
-      // Check if student is eligible for this attendance (matching department and year)
-      if (student.department !== qrData.department || student.year !== qrData.year) {
-        throw new Error(`This attendance is for ${qrData.department} Year ${qrData.year} students only`);
-      }
-      
-      // Check if student already marked attendance
-      const { data: existingAttendance, error: checkError } = await supabase
-        .from('attendance_records')
-        .select('id')
-        .eq('event_id', qrData.eventId)
-        .eq('student_id', student.id)
+
+      // Get the event details from Supabase
+      const { data: eventData, error: eventError } = await supabase
+        .from('attendance_events')
+        .select('*')
+        .eq('id', parsedData.eventId)
         .single();
-      
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-        console.error('Error checking existing attendance:', checkError);
-        throw new Error('Failed to check attendance status');
+
+      if (eventError || !eventData) {
+        console.error("Event fetch error:", eventError);
+        throw new Error("Could not find the attendance session");
       }
-      
-      if (existingAttendance) {
-        throw new Error('You have already marked your attendance for this session');
+
+      console.log("Found event:", eventData);
+
+      // Check if student has already marked attendance
+      const { data: existingRecord, error: recordError } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('event_id', parsedData.eventId)
+        .eq('student_id', user.id)
+        .single();
+
+      if (existingRecord) {
+        throw new Error("You have already marked attendance for this session");
       }
-      
-      // Mark attendance in Supabase
-      const { error: insertError } = await supabase
+
+      // Make sure student department and year match the event
+      if (user.department !== eventData.department || user.year !== eventData.year) {
+        throw new Error(`This attendance is for ${eventData.department} Year ${eventData.year} students only`);
+      }
+
+      // Save attendance record to Supabase
+      const { error: saveError } = await supabase
         .from('attendance_records')
         .insert({
-          event_id: qrData.eventId,
-          student_id: student.id,
-          student_name: student.name,
-          roll_no: student.rollNo,
-          sap_id: student.sapId,
-          scan_time: new Date().toISOString(),
+          event_id: parsedData.eventId,
+          student_id: user.id,
+          student_name: user.name,
+          roll_no: user.rollNo,
+          sap_id: user.sapId,
           present: true
         });
-      
-      if (insertError) {
-        console.error('Error marking attendance:', insertError);
-        throw new Error('Failed to mark attendance');
+
+      if (saveError) {
+        console.error("Error saving attendance:", saveError);
+        throw new Error("Failed to record attendance");
       }
+
+      // Success!
+      setScanState(ScanState.SUCCESS);
+      toast.success("Attendance marked successfully!");
       
-      // Show success
-      setSuccess(true);
-      toast.success('Attendance marked successfully');
-      
-      // Reset after 3 seconds
+      // Reset to idle state after a few seconds
       setTimeout(() => {
-        setSuccess(false);
-        setProcessing(false);
+        setScanState(ScanState.IDLE);
       }, 3000);
-      
+
     } catch (error: any) {
-      console.error('Scan error:', error);
-      setError(error.message || 'Failed to process QR code');
+      console.error("QR scan error:", error);
+      setErrorMessage(error.message || "Failed to process QR code");
+      setScanState(ScanState.ERROR);
       
-      // Reset after 3 seconds
+      // Reset to idle state after a few seconds
       setTimeout(() => {
-        setError(null);
-        setProcessing(false);
-      }, 3000);
+        setScanState(ScanState.IDLE);
+      }, 5000);
     }
   };
 
-  const handleError = (err: any) => {
-    console.error('Scanner error:', err);
-    toast.error('Scanner error: ' + err.message);
-    setScanning(false);
-  };
-
-  const startScanning = () => {
-    setScanning(true);
-    setError(null);
-    setSuccess(false);
-  };
-
-  const stopScanning = () => {
-    setScanning(false);
+  const handleScanError = (error: any) => {
+    console.error("Scanner error:", error);
+    setErrorMessage("Failed to access camera");
+    setScanState(ScanState.ERROR);
   };
 
   return {
-    scanning,
-    success,
-    error,
-    processing,
-    handleScan,
-    handleError,
+    scanState,
+    errorMessage,
     startScanning,
-    stopScanning
+    cancelScanning,
+    processQRData,
+    handleScanError
   };
 }

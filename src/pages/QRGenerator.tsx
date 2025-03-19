@@ -5,6 +5,9 @@ import { useProtectedRoute } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 import QRDisplayCard from "@/components/qr/QRDisplayCard";
 import { useQRGenerator } from "@/hooks/use-qr-generator";
+import { toast } from "sonner";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const QRGenerator = () => {
   const navigate = useNavigate();
@@ -18,6 +21,47 @@ const QRGenerator = () => {
     copyQRData,
     generateFakeQR
   } = useQRGenerator();
+
+  // Save attendance event to Supabase when the component loads
+  useEffect(() => {
+    const saveAttendanceEvent = async () => {
+      if (eventData && qrData) {
+        try {
+          // Convert qrData to a plain object before storing
+          const qrDataObj = JSON.parse(JSON.stringify(qrData));
+          
+          // Insert the attendance event into Supabase
+          const { error } = await supabase
+            .from('attendance_events')
+            .insert({
+              teacher_id: eventData.teacherId,
+              teacher_name: eventData.teacherName,
+              subject: eventData.subject,
+              room: eventData.room,
+              department: eventData.department,
+              year: eventData.year,
+              date: eventData.date,
+              time: eventData.time,
+              qr_data: qrDataObj,
+              qr_expiry: expiryDate.toISOString(),
+            });
+            
+          if (error) {
+            console.error("Error saving attendance event:", error);
+            toast.error("Failed to save attendance session");
+          } else {
+            console.log("Attendance event saved successfully");
+            toast.success("Attendance session created successfully");
+          }
+        } catch (err) {
+          console.error("Error in saveAttendanceEvent:", err);
+          toast.error("Failed to process attendance data");
+        }
+      }
+    };
+
+    saveAttendanceEvent();
+  }, [eventData, qrData, expiryDate]);
 
   if (loading || !eventData) {
     return (
