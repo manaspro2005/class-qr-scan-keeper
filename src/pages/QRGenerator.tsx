@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { QRData, AttendanceEvent } from "@/types";
-import { storeAttendanceEvent } from "@/lib/mongodb";
+import { storeAttendanceEvent } from "@/lib/supabase";
 
 const QRGenerator = () => {
   const navigate = useNavigate();

@@ -27,6 +27,7 @@ export interface Student extends User {
 export interface AttendanceEvent {
   id: string;
   teacherId: string;
+  teacherName?: string; // Added this field to fix the error
   date: string;
   time: string;
   room: string;

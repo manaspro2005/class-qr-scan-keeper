@@ -1,157 +1,94 @@
 
-import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
-import { QRData, Student } from '@/types';
-import { useAuth } from '@/lib/auth';
-import { markAttendance } from '@/lib/mongodb';
+import { useState } from "react";
+import { toast } from "sonner";
+import { validateQrCode, markStudentAttendance } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import { QRData } from "@/types";
 
-export function useQRScanner() {
+export enum ScanState {
+  IDLE = "idle",
+  SCANNING = "scanning",
+  PROCESSING = "processing",
+  SUCCESS = "success",
+  ERROR = "error"
+}
+
+export const useQRScanner = () => {
   const { user } = useAuth();
-  const [scanning, setScanning] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [scanState, setScanState] = useState<ScanState>(ScanState.IDLE);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // Reset states when hook unmounts
-  useEffect(() => {
-    return () => {
-      setScanning(false);
-      setSuccess(false);
-      setError(null);
-      setProcessing(false);
-    };
-  }, []);
+  const startScanning = () => {
+    setScanState(ScanState.SCANNING);
+    setErrorMessage("");
+  };
 
-  const handleScan = async (data: string) => {
-    if (!data || processing) return;
-    
+  const cancelScanning = () => {
+    setScanState(ScanState.IDLE);
+    setErrorMessage("");
+  };
+
+  const processQRData = async (qrData: string) => {
     try {
-      setProcessing(true);
-      setScanning(false);
-      
-      console.log('QR Data:', data);
-      
-      // Decode QR data
-      let qrData: QRData;
+      if (!user) {
+        throw new Error("You must be logged in to scan attendance QR codes");
+      }
+
+      setScanState(ScanState.PROCESSING);
+
+      // Parse QR data
+      let parsedData: QRData;
       try {
-        qrData = JSON.parse(data);
-      } catch (e) {
-        throw new Error('Invalid QR code format');
+        parsedData = JSON.parse(qrData);
+      } catch (err) {
+        throw new Error("Invalid QR code format");
       }
+
+      // Validate QR data
+      const validation = await validateQrCode(parsedData, user.id);
       
-      // Check if QR code is expired
-      const expiry = new Date(qrData.expiry);
-      if (new Date() > expiry) {
-        throw new Error('QR code has expired');
+      if (!validation.valid || !validation.event) {
+        throw new Error(validation.error || "Invalid QR code");
       }
-      
-      // Check for prank QR code
-      if (qrData.secret === 'prank') {
-        throw new Error('Oops! You got fooled. This is a fake QR code.');
-      }
-      
-      // Get student data
-      const student = user as Student;
-      if (!student) {
-        throw new Error('Student data not found');
-      }
-      
-      // Check if student is eligible for this attendance (matching department and year)
-      if (student.department !== qrData.department || student.year !== qrData.year) {
-        throw new Error(`This attendance is for ${qrData.department} Year ${qrData.year} students only`);
-      }
-      
-      // Mark attendance
-      const attendance = {
-        studentId: student.id,
-        name: student.name,
-        rollNo: student.rollNo,
-        sapId: student.sapId,
-        scanTime: new Date(),
-        present: true
-      };
-      
-      // Save attendance to MongoDB
-      const result = await markAttendance(qrData.eventId, attendance);
-      
+
+      // Mark student attendance
+      const result = await markStudentAttendance(
+        validation.event.id,
+        {
+          id: user.id,
+          name: user.name,
+          rollNo: user.role === 'student' ? user.rollNo || "" : "",
+          sapId: user.role === 'student' ? user.sapId || "" : ""
+        }
+      );
+
       if (!result.success) {
-        if (result.message === "Already marked attendance") {
-          throw new Error('You have already marked your attendance for this session');
-        }
-        throw new Error('Failed to mark attendance');
+        throw new Error("Failed to mark attendance");
       }
-      
-      // Also update localStorage for demo/fallback
-      try {
-        const storedEvents = localStorage.getItem('attendanceEvents') || '[]';
-        const events = JSON.parse(storedEvents);
-        
-        // Find the event
-        const eventIndex = events.findIndex((e: any) => e.id === qrData.eventId);
-        
-        if (eventIndex !== -1) {
-          // Check if student already marked attendance
-          if (events[eventIndex].attendees.some((a: any) => a.studentId === student.id)) {
-            // Already marked, but continue because MongoDB operation was successful
-          } else {
-            // Add attendance to event
-            events[eventIndex].attendees.push(attendance);
-            
-            // Save updated events
-            localStorage.setItem('attendanceEvents', JSON.stringify(events));
-          }
-        }
-      } catch (e) {
-        console.error("LocalStorage update failed:", e);
-        // Continue since the MongoDB operation was successful
-      }
-      
-      // Show success
-      setSuccess(true);
-      toast.success('Attendance marked successfully');
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setSuccess(false);
-        setProcessing(false);
-      }, 3000);
+
+      // Success
+      setScanState(ScanState.SUCCESS);
+      toast.success("Attendance marked successfully!");
       
     } catch (error: any) {
-      console.error('Scan error:', error);
-      setError(error.message || 'Failed to process QR code');
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setError(null);
-        setProcessing(false);
-      }, 3000);
+      setScanState(ScanState.ERROR);
+      setErrorMessage(error.message || "Failed to process QR code");
+      toast.error(error.message || "Failed to process QR code");
     }
   };
 
-  const handleError = (err: any) => {
-    console.error('Scanner error:', err);
-    toast.error('Scanner error: ' + err.message);
-    setScanning(false);
-  };
-
-  const startScanning = () => {
-    setScanning(true);
-    setError(null);
-    setSuccess(false);
-  };
-
-  const stopScanning = () => {
-    setScanning(false);
+  const handleScanError = (error: any) => {
+    setScanState(ScanState.ERROR);
+    setErrorMessage(error.message || "Failed to scan QR code");
+    toast.error(error.message || "Failed to scan QR code");
   };
 
   return {
-    scanning,
-    success,
-    error,
-    processing,
-    handleScan,
-    handleError,
+    scanState,
+    errorMessage,
     startScanning,
-    stopScanning
+    cancelScanning,
+    processQRData,
+    handleScanError
   };
-}
+};
